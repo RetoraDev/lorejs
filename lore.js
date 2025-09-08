@@ -121,7 +121,7 @@
         prompt: options.prompt || DEFAULT_PROMPT,
         autosave: options.autosave !== false,
         saveSlots: options.saveSlots || 3,
-        typingSpeed: options.typingSpeed || 0,
+        typingSpeed: options.typingSpeed || 30,
         debug: options.debug || false,
         disableTextAnimation: options.disableTextAnimation || false
       };
@@ -318,38 +318,19 @@
     
     // Formatting parser
     parseFormatting(text) {
-      // Handle instant tags first
-      const instantRegex = /\{\{instant\}\}(.*?)\{\{\/instant\}\}/g;
-    
       if (this.env === 'browser') {
-        let result = text;
-        let match;
-    
-        while ((match = instantRegex.exec(text)) !== null) {
-          result = result.replace(match[0], match[1]);
-        }
-    
-        // Then process other formatting
-        return this.parseFormattingBrowser(result);
+        return this.parseFormattingBrowser(text);
       } else {
-        let result = text;
-        let match;
-    
-        while ((match = instantRegex.exec(text)) !== null) {
-          result = result.replace(match[0], match[1]);
-        }
-    
-        // Then process other formatting
-        return this.parseFormattingNode(result);
+        return this.parseFormattingNode(text);
       }
     }
 
     parseFormattingBrowser(text) {
       const formatRegex = /\{\{([^}]+)\}\}/g;
       let lastIndex = 0;
-      let result = "";
+      let result = '';
       let match;
-
+    
       // Reset formatting state
       this.formattingState = {
         color: null,
@@ -357,77 +338,80 @@
         italic: false,
         underline: false
       };
-
+    
       while ((match = formatRegex.exec(text)) !== null) {
         // Add text before the formatting tag
         result += text.substring(lastIndex, match.index);
         lastIndex = match.index + match[0].length;
-
+    
         // Process the formatting tag
         const tag = match[1].trim().toLowerCase();
-
-        if (tag === "font_reset" || tag === "fr") {
-          result += "</span>";
+    
+        if (tag === 'font_reset' || tag === 'fr') {
+          result += '</span>';
           this.formattingState = {
             color: null,
             bold: false,
             italic: false,
             underline: false
           };
-        } else if (tag === "color_reset") {
+        } else if (tag === 'color_reset') {
           if (this.formattingState.color) {
-            result += "</span>";
+            result += '</span>';
             this.formattingState.color = null;
           }
         } else if (utils.isValidColor(tag)) {
           // Close previous color span if exists
           if (this.formattingState.color) {
-            result += "</span>";
+            result += '</span>';
           }
-
-          const color = utils.colorNameToHex(tag.replace("#", ""));
+    
+          const color = utils.colorNameToHex(tag.replace('#', ''));
           result += `<span style="color: ${color}">`;
           this.formattingState.color = color;
-        } else if (tag === "bold" || tag === "thick" || tag === "strong" || tag === "b") {
+        } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
           if (!this.formattingState.bold) {
-            result += "<strong>";
+            result += '<strong>';
             this.formattingState.bold = true;
           }
-        } else if (tag === "italic" || tag === "cursive" || tag === "i") {
+        } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
           if (!this.formattingState.italic) {
-            result += "<em>";
+            result += '<em>';
             this.formattingState.italic = true;
           }
-        } else if (tag === "underline" || tag === "u") {
+        } else if (tag === 'underline' || tag === 'u') {
           if (!this.formattingState.underline) {
             result += '<span style="text-decoration: underline">';
             this.formattingState.underline = true;
           }
-        } else if (tag === "newline" || tag === "n") {
-          result += "<br>";
-        } else if (tag === "tabulator" || tag === "tab" || tag === "t") {
-          result += "&nbsp;&nbsp;&nbsp;&nbsp;";
+        } else if (tag === 'newline' || tag === 'n') {
+          result += '<br>';
+        } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+          result += '&nbsp;&nbsp;&nbsp;&nbsp;';
+        } else if (tag === 'instant') {
+          // Instant tag - handled in animation, just remove the tag
+          result += '';
         }
       }
-
+    
       // Add the remaining text
       result += text.substring(lastIndex);
-
+    
       // Close any open formatting tags
-      if (this.formattingState.underline) result += "</span>";
-      if (this.formattingState.italic) result += "</em>";
-      if (this.formattingState.bold) result += "</strong>";
-      if (this.formattingState.color) result += "</span>";
-
+      if (this.formattingState.underline) result += '</span>';
+      if (this.formattingState.italic) result += '</em>';
+      if (this.formattingState.bold) result += '</strong>';
+      if (this.formattingState.color) result += '</span>';
+    
       return result;
     }
 
     parseFormattingNode(text) {
       const formatRegex = /\{\{([^}]+)\}\}/g;
       let lastIndex = 0;
-      let result = "";
+      let result = '';
       let match;
-
+    
       // Reset formatting state
       this.formattingState = {
         color: null,
@@ -435,16 +419,16 @@
         italic: false,
         underline: false
       };
-
+    
       while ((match = formatRegex.exec(text)) !== null) {
         // Add text before the formatting tag
         result += text.substring(lastIndex, match.index);
         lastIndex = match.index + match[0].length;
-
+    
         // Process the formatting tag
         const tag = match[1].trim().toLowerCase();
-
-        if (tag === "font_reset" || tag === "fr") {
+    
+        if (tag === 'font_reset' || tag === 'fr') {
           result += ANSI_STYLES.reset;
           this.formattingState = {
             color: null,
@@ -452,8 +436,9 @@
             italic: false,
             underline: false
           };
-        } else if (tag === "color_reset") {
-          if (this.formattingState.color || this.formattingState.bold || this.formattingState.italic || this.formattingState.underline) {
+        } else if (tag === 'color_reset') {
+          if (this.formattingState.color || this.formattingState.bold ||
+            this.formattingState.italic || this.formattingState.underline) {
             result += ANSI_STYLES.reset;
             this.formattingState = {
               color: null,
@@ -463,41 +448,45 @@
             };
           }
         } else if (utils.isValidColor(tag)) {
-          const colorName = tag.replace("#", "");
+          const colorName = tag.replace('#', '');
           if (ANSI_COLORS[colorName]) {
             result += ANSI_COLORS[colorName];
             this.formattingState.color = colorName;
           }
-        } else if (tag === "bold" || tag === "thick" || tag === "strong" || tag === "b") {
+        } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
           if (!this.formattingState.bold) {
             result += ANSI_STYLES.bold;
             this.formattingState.bold = true;
           }
-        } else if (tag === "italic" || tag === "cursive" || tag === "i") {
+        } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
           if (!this.formattingState.italic) {
             result += ANSI_STYLES.italic;
             this.formattingState.italic = true;
           }
-        } else if (tag === "underline" || tag === "u") {
+        } else if (tag === 'underline' || tag === 'u') {
           if (!this.formattingState.underline) {
             result += ANSI_STYLES.underline;
             this.formattingState.underline = true;
           }
-        } else if (tag === "newline" || tag === "n") {
-          result += "\n";
-        } else if (tag === "tabulator" || tag === "tab" || tag === "t") {
-          result += "\t";
+        } else if (tag === 'newline' || tag === 'n') {
+          result += '\n';
+        } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+          result += '\t';
+        } else if (tag === 'instant') {
+          // Instant tag - handled in animation, just remove the tag
+          result += '';
         }
       }
-
+    
       // Add the remaining text
       result += text.substring(lastIndex);
-
+    
       // Reset formatting at the end
-      if (this.formattingState.color || this.formattingState.bold || this.formattingState.italic || this.formattingState.underline) {
+      if (this.formattingState.color || this.formattingState.bold ||
+        this.formattingState.italic || this.formattingState.underline) {
         result += ANSI_STYLES.reset;
       }
-
+    
       return result;
     }
 
@@ -652,7 +641,10 @@
 
     // Output methods
     print(text, instant = false) {
-      if (this.config.disableTextAnimation || instant) {
+      // Check if the text contains instant tags
+      const hasInstantTags = text.includes('{{instant}}');
+    
+      if (this.config.disableTextAnimation || instant || hasInstantTags) {
         const formattedText = this.parseFormatting(text);
     
         if (this.env === 'browser') {
@@ -695,17 +687,17 @@
     }
     
     animateText(text, callback) {
-      const formattedText = this.parseFormatting(text);
       let index = 0;
       let instantMode = false;
       let outputText = '';
+      let tagStack = [];
     
       if (this.env === 'browser') {
         const div = document.createElement('div');
         this.outputElement.appendChild(div);
     
         this.animationState.currentAnimation = setInterval(() => {
-          if (index >= formattedText.length) {
+          if (index >= text.length) {
             clearInterval(this.animationState.currentAnimation);
             this.animationState.currentAnimation = null;
             if (callback) callback();
@@ -713,43 +705,80 @@
             return;
           }
     
-          // Check for instant tags
-          if (formattedText.substring(index, index + 11) === '{{instant}}') {
+          // Check for opening instant tag
+          if (text.substring(index, index + 11) === '{{instant}}') {
             instantMode = true;
             index += 11;
-          } else if (formattedText.substring(index, index + 13) === '{{/instant}}') {
-            instantMode = false;
+            tagStack.push('instant');
+            return;
+          }
+    
+          // Check for closing instant tag
+          if (text.substring(index, index + 13) === '{{/instant}}') {
+            if (tagStack[tagStack.length - 1] === 'instant') {
+              tagStack.pop();
+              instantMode = tagStack.includes('instant');
+            }
             index += 13;
+            return;
+          }
+    
+          // Check for other formatting tags
+          if (text.charAt(index) === '{' && text.charAt(index + 1) === '{') {
+            const tagEnd = text.indexOf('}}', index);
+            if (tagEnd !== -1) {
+              const tag = text.substring(index + 2, tagEnd).trim().toLowerCase();
+    
+              // Handle formatting tags
+              if (tag === 'font_reset' || tag === 'fr') {
+                outputText += '</span>';
+              } else if (tag === 'color_reset') {
+                outputText += '</span>';
+              } else if (utils.isValidColor(tag)) {
+                const color = utils.colorNameToHex(tag.replace('#', ''));
+                outputText += `<span style="color: ${color}">`;
+              } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
+                outputText += '<strong>';
+              } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
+                outputText += '<em>';
+              } else if (tag === 'underline' || tag === 'u') {
+                outputText += '<span style="text-decoration: underline">';
+              } else if (tag === 'newline' || tag === 'n') {
+                outputText += '<br>';
+              } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+                outputText += '&nbsp;&nbsp;&nbsp;&nbsp;';
+              }
+    
+              index = tagEnd + 2;
+              div.innerHTML = outputText;
+              return;
+            }
           }
     
           if (instantMode) {
-            // Add all text until closing tag or end
-            const closingIndex = formattedText.indexOf('{{/instant}}', index);
+            // Find the next closing instant tag or end of text
+            const closingIndex = text.indexOf('{{/instant}}', index);
             if (closingIndex === -1) {
-              outputText += formattedText.substring(index);
+              // No closing tag found, add all remaining text
+              outputText += text.substring(index);
               div.innerHTML = outputText;
-              index = formattedText.length;
+              index = text.length;
             } else {
-              outputText += formattedText.substring(index, closingIndex);
+              // Add text until closing tag
+              outputText += text.substring(index, closingIndex);
               div.innerHTML = outputText;
               index = closingIndex;
             }
           } else {
-            outputText += formattedText.charAt(index);
+            outputText += text.charAt(index);
             div.innerHTML = outputText;
             index++;
           }
         }, this.config.typingSpeed);
       } else {
         // Node.js implementation
-        let cleanText = formattedText;
-    
-        // Remove ANSI codes for length calculation
-        const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
-        const cleanTextWithoutAnsi = cleanText.replace(ansiRegex, '');
-    
         this.animationState.currentAnimation = setInterval(() => {
-          if (index >= cleanTextWithoutAnsi.length) {
+          if (index >= text.length) {
             clearInterval(this.animationState.currentAnimation);
             this.animationState.currentAnimation = null;
             if (callback) callback();
@@ -757,37 +786,71 @@
             return;
           }
     
-          // Check for instant tags
-          if (cleanText.substring(index, index + 11) === '{{instant}}') {
+          // Check for opening instant tag
+          if (text.substring(index, index + 11) === '{{instant}}') {
             instantMode = true;
             index += 11;
-            // Adjust for ANSI codes
-            const ansiMatch = cleanText.substring(0, index).match(ansiRegex);
-            if (ansiMatch) {
-              index += ansiMatch.join('').length;
+            tagStack.push('instant');
+            return;
+          }
+    
+          // Check for closing instant tag
+          if (text.substring(index, index + 13) === '{{/instant}}') {
+            if (tagStack[tagStack.length - 1] === 'instant') {
+              tagStack.pop();
+              instantMode = tagStack.includes('instant');
             }
-          } else if (cleanText.substring(index, index + 13) === '{{/instant}}') {
-            instantMode = false;
             index += 13;
-            // Adjust for ANSI codes
-            const ansiMatch = cleanText.substring(0, index).match(ansiRegex);
-            if (ansiMatch) {
-              index += ansiMatch.join('').length;
+            return;
+          }
+    
+          // Check for other formatting tags
+          if (text.charAt(index) === '{' && text.charAt(index + 1) === '{') {
+            const tagEnd = text.indexOf('}}', index);
+            if (tagEnd !== -1) {
+              const tag = text.substring(index + 2, tagEnd).trim().toLowerCase();
+    
+              // Handle formatting tags
+              if (tag === 'font_reset' || tag === 'fr') {
+                process.stdout.write(ANSI_STYLES.reset);
+              } else if (tag === 'color_reset') {
+                process.stdout.write(ANSI_STYLES.reset);
+              } else if (utils.isValidColor(tag)) {
+                const colorName = tag.replace('#', '');
+                if (ANSI_COLORS[colorName]) {
+                  process.stdout.write(ANSI_COLORS[colorName]);
+                }
+              } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
+                process.stdout.write(ANSI_STYLES.bold);
+              } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
+                process.stdout.write(ANSI_STYLES.italic);
+              } else if (tag === 'underline' || tag === 'u') {
+                process.stdout.write(ANSI_STYLES.underline);
+              } else if (tag === 'newline' || tag === 'n') {
+                process.stdout.write('\n');
+              } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+                process.stdout.write('\t');
+              }
+    
+              index = tagEnd + 2;
+              return;
             }
           }
     
           if (instantMode) {
-            // Add all text until closing tag or end
-            const closingIndex = cleanText.indexOf('{{/instant}}', index);
+            // Find the next closing instant tag or end of text
+            const closingIndex = text.indexOf('{{/instant}}', index);
             if (closingIndex === -1) {
-              process.stdout.write(cleanText.substring(index));
-              index = cleanText.length;
+              // No closing tag found, add all remaining text
+              process.stdout.write(text.substring(index));
+              index = text.length;
             } else {
-              process.stdout.write(cleanText.substring(index, closingIndex));
+              // Add text until closing tag
+              process.stdout.write(text.substring(index, closingIndex));
               index = closingIndex;
             }
           } else {
-            process.stdout.write(cleanText.charAt(index));
+            process.stdout.write(text.charAt(index));
             index++;
           }
         }, this.config.typingSpeed);
@@ -814,17 +877,26 @@
       if (this.animationState.currentAnimation) {
         clearInterval(this.animationState.currentAnimation);
         this.animationState.currentAnimation = null;
-        this.animationState.animationQueue = [];
-        this.animationState.isAnimating = false;
     
-        // Display all queued text instantly
-        if (this.env === 'browser') {
-          const lines = this.outputElement.querySelectorAll('div');
-          if (lines.length > 0) {
-            const lastLine = lines[lines.length - 1];
-            lastLine.remove();
+        // Process all remaining animation items instantly
+        while (this.animationState.animationQueue.length > 0) {
+          const animationItem = this.animationState.animationQueue.shift();
+          const formattedText = this.parseFormatting(animationItem.text);
+    
+          if (this.env === 'browser') {
+            const div = document.createElement('div');
+            div.innerHTML = formattedText;
+            this.outputElement.appendChild(div);
+          } else {
+            process.stdout.write(formattedText);
+          }
+    
+          if (animationItem.callback) {
+            animationItem.callback();
           }
         }
+    
+        this.animationState.isAnimating = false;
       }
     }
 
