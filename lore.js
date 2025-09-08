@@ -1,5 +1,5 @@
 // L.O.R.E. - Line-Oriented Recursive Engine
-// A text adventure engine for Node.js and browsers
+// A text adventure engine for Node.js and browsers with markdown formatting
 
 (function (global, factory) {
     if (typeof module === 'object' && typeof module.exports === 'object') {
@@ -11,7 +11,7 @@
     'use strict';
 
     // Constants
-    const VERSION = '1.0.0';
+    const VERSION = '1.1.0';
     const STORAGE_KEY = 'lore_save_data';
     const DEFAULT_PROMPT = '> ';
     const DEFAULT_THEME = {
@@ -22,6 +22,35 @@
         '--lore-font-family': 'monospace',
         '--lore-font-size': '16px',
         '--lore-border-color': '#333333'
+    };
+
+    // ANSI color codes for Node.js
+    const ANSI_COLORS = {
+        black: '\x1b[30m',
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        reset: '\x1b[0m'
+    };
+
+    const ANSI_STYLES = {
+        reset: '\x1b[0m',
+        bold: '\x1b[1m',
+        thick: '\x1b[1m',
+        strong: '\x1b[1m',
+        b: '\x1b[1m',
+        italic: '\x1b[3m',
+        cursive: '\x1b[3m',
+        i: '\x1b[3m',
+        underline: '\x1b[4m',
+        u: '\x1b[4m',
+        blink: '\x1b[5m',
+        inverse: '\x1b[7m',
+        hidden: '\x1b[8m'
     };
 
     // Utility functions
@@ -48,6 +77,31 @@
                 clearTimeout(timeout);
                 timeout = setTimeout(later, wait);
             };
+        },
+        // Color name to hex mapping
+        colorNameToHex: function (color) {
+            const colors = {
+                black: '#000000',
+                red: '#ff0000',
+                green: '#00ff00',
+                yellow: '#ffff00',
+                blue: '#0000ff',
+                magenta: '#ff00ff',
+                cyan: '#00ffff',
+                white: '#ffffff'
+            };
+            return colors[color.toLowerCase()] || color;
+        },
+        // Check if a string is a valid color
+        isValidColor: function (color) {
+            if (!color) return false;
+            
+            // Check if it's a named color
+            const namedColors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+            if (namedColors.includes(color.toLowerCase())) return true;
+            
+            // Check if it's a hex color
+            return /^#?([0-9A-F]{3}){1,2}$/i.test(color);
         }
     };
 
@@ -88,6 +142,14 @@
             this.animationFrames = new Map();
             this.animationIntervals = new Map();
 
+            // Formatting state
+            this.formattingState = {
+                color: null,
+                bold: false,
+                italic: false,
+                underline: false
+            };
+
             // Initialize based on environment
             if (utils.isBrowser) {
                 this.initBrowser();
@@ -127,6 +189,7 @@
                 height: calc(100% - 60px);
                 overflow-y: auto;
                 margin-bottom: 10px;
+                white-space: pre-wrap;
             `;
 
             this.inputContainer = document.createElement('div');
@@ -235,6 +298,174 @@
                     }
                 });
             });
+        }
+
+        // Formatting parser
+        parseFormatting(text) {
+            if (this.env === 'browser') {
+                return this.parseFormattingBrowser(text);
+            } else {
+                return this.parseFormattingNode(text);
+            }
+        }
+
+        parseFormattingBrowser(text) {
+            const formatRegex = /\{\{([^}]+)\}\}/g;
+            let lastIndex = 0;
+            let result = '';
+            let match;
+            
+            // Reset formatting state
+            this.formattingState = {
+                color: null,
+                bold: false,
+                italic: false,
+                underline: false
+            };
+            
+            while ((match = formatRegex.exec(text)) !== null) {
+                // Add text before the formatting tag
+                result += text.substring(lastIndex, match.index);
+                lastIndex = match.index + match[0].length;
+                
+                // Process the formatting tag
+                const tag = match[1].trim().toLowerCase();
+                
+                if (tag === 'font_reset' || tag === 'fr') {
+                    result += '</span>';
+                    this.formattingState = {
+                        color: null,
+                        bold: false,
+                        italic: false,
+                        underline: false
+                    };
+                } else if (tag === 'color_reset') {
+                    if (this.formattingState.color) {
+                        result += '</span>';
+                        this.formattingState.color = null;
+                    }
+                } else if (utils.isValidColor(tag)) {
+                    // Close previous color span if exists
+                    if (this.formattingState.color) {
+                        result += '</span>';
+                    }
+                    
+                    const color = utils.colorNameToHex(tag.replace('#', ''));
+                    result += `<span style="color: ${color}">`;
+                    this.formattingState.color = color;
+                } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
+                    if (!this.formattingState.bold) {
+                        result += '<strong>';
+                        this.formattingState.bold = true;
+                    }
+                } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
+                    if (!this.formattingState.italic) {
+                        result += '<em>';
+                        this.formattingState.italic = true;
+                    }
+                } else if (tag === 'underline' || tag === 'u') {
+                    if (!this.formattingState.underline) {
+                        result += '<span style="text-decoration: underline">';
+                        this.formattingState.underline = true;
+                    }
+                } else if (tag === 'newline' || tag === 'n') {
+                    result += '<br>';
+                } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+                    result += '&nbsp;&nbsp;&nbsp;&nbsp;';
+                }
+            }
+            
+            // Add the remaining text
+            result += text.substring(lastIndex);
+            
+            // Close any open formatting tags
+            if (this.formattingState.underline) result += '</span>';
+            if (this.formattingState.italic) result += '</em>';
+            if (this.formattingState.bold) result += '</strong>';
+            if (this.formattingState.color) result += '</span>';
+            
+            return result;
+        }
+
+        parseFormattingNode(text) {
+            const formatRegex = /\{\{([^}]+)\}\}/g;
+            let lastIndex = 0;
+            let result = '';
+            let match;
+            
+            // Reset formatting state
+            this.formattingState = {
+                color: null,
+                bold: false,
+                italic: false,
+                underline: false
+            };
+            
+            while ((match = formatRegex.exec(text)) !== null) {
+                // Add text before the formatting tag
+                result += text.substring(lastIndex, match.index);
+                lastIndex = match.index + match[0].length;
+                
+                // Process the formatting tag
+                const tag = match[1].trim().toLowerCase();
+                
+                if (tag === 'font_reset' || tag === 'fr') {
+                    result += ANSI_STYLES.reset;
+                    this.formattingState = {
+                        color: null,
+                        bold: false,
+                        italic: false,
+                        underline: false
+                    };
+                } else if (tag === 'color_reset') {
+                    if (this.formattingState.color || this.formattingState.bold || 
+                        this.formattingState.italic || this.formattingState.underline) {
+                        result += ANSI_STYLES.reset;
+                        this.formattingState = {
+                            color: null,
+                            bold: false,
+                            italic: false,
+                            underline: false
+                        };
+                    }
+                } else if (utils.isValidColor(tag)) {
+                    const colorName = tag.replace('#', '');
+                    if (ANSI_COLORS[colorName]) {
+                        result += ANSI_COLORS[colorName];
+                        this.formattingState.color = colorName;
+                    }
+                } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
+                    if (!this.formattingState.bold) {
+                        result += ANSI_STYLES.bold;
+                        this.formattingState.bold = true;
+                    }
+                } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
+                    if (!this.formattingState.italic) {
+                        result += ANSI_STYLES.italic;
+                        this.formattingState.italic = true;
+                    }
+                } else if (tag === 'underline' || tag === 'u') {
+                    if (!this.formattingState.underline) {
+                        result += ANSI_STYLES.underline;
+                        this.formattingState.underline = true;
+                    }
+                } else if (tag === 'newline' || tag === 'n') {
+                    result += '\n';
+                } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+                    result += '\t';
+                }
+            }
+            
+            // Add the remaining text
+            result += text.substring(lastIndex);
+            
+            // Reset formatting at the end
+            if (this.formattingState.color || this.formattingState.bold || 
+                this.formattingState.italic || this.formattingState.underline) {
+                result += ANSI_STYLES.reset;
+            }
+            
+            return result;
         }
 
         // Command processing
@@ -360,18 +591,20 @@
 
         // Output methods
         print(text) {
+            const formattedText = this.parseFormatting(text);
+            
             if (this.env === 'browser') {
-                const span = document.createElement('span');
-                span.innerHTML = text.replace('\n', '<br>');
-                this.outputElement.appendChild(span);
+                const div = document.createElement('div');
+                div.innerHTML = formattedText;
+                this.outputElement.appendChild(div);
                 this.outputElement.scrollTop = this.outputElement.scrollHeight;
             } else {
-                process.stdout.write(text);
+                process.stdout.write(formattedText);
             }
         }
 
         printLine(text = '') {
-            this.print(text + '\n');
+            this.print(text + (this.env === 'browser' ? '<br>' : '\n'));
         }
 
         clearScreen() {
@@ -745,7 +978,7 @@
                     `;
                     
                     const text = document.createElement('p');
-                    text.textContent = prompt;
+                    text.innerHTML = this.parseFormatting(prompt);
                     text.style.margin = '0 0 15px 0';
                     
                     const buttonContainer = document.createElement('div');
@@ -778,7 +1011,7 @@
             } else {
                 // Node.js implementation
                 return new Promise((resolve) => {
-                    this.rl.question(`${prompt} (y/n) `, (answer) => {
+                    this.rl.question(`${this.parseFormatting(prompt)} (y/n) `, (answer) => {
                         resolve(answer.match(/^y(es)?$/i) !== null);
                     });
                 });
@@ -816,7 +1049,7 @@
                     `;
                     
                     const text = document.createElement('p');
-                    text.textContent = prompt;
+                    text.innerHTML = this.parseFormatting(prompt);
                     text.style.margin = '0 0 15px 0';
                     
                     const list = document.createElement('ul');
@@ -829,7 +1062,7 @@
                         li.style.padding = '8px 5px';
                         li.style.cursor = 'pointer';
                         li.style.borderBottom = `1px solid ${this.theme['--lore-border-color']}`;
-                        li.textContent = option;
+                        li.innerHTML = this.parseFormatting(option);
                         
                         li.addEventListener('click', () => {
                             document.body.removeChild(modal);
@@ -1208,6 +1441,15 @@
                     for (const [property, value] of Object.entries(this.theme)) {
                         document.documentElement.style.setProperty(property, value);
                     }
+                    
+                    // Update terminal styles
+                    this.terminalElement.style.backgroundColor = this.theme['--lore-bg-color'];
+                    this.terminalElement.style.color = this.theme['--lore-text-color'];
+                    this.terminalElement.style.fontFamily = this.theme['--lore-font-family'];
+                    this.terminalElement.style.fontSize = this.theme['--lore-font-size'];
+                    
+                    this.promptElement.style.color = this.theme['--lore-prompt-color'];
+                    this.inputElement.style.color = this.theme['--lore-input-color'];
                 }
                 
                 this.printLine('Theme applied.');
@@ -1233,20 +1475,20 @@
         registerDefaultCommands() {
             // Help command
             this.registerCommand('help', (args, engine) => {
-                engine.printLine('Available commands:');
-                engine.printLine('  look, l - Look around the current room');
-                engine.printLine('  go [direction] - Move in a direction (north, south, east, west, etc.)');
-                engine.printLine('  take [item] - Take an item');
-                engine.printLine('  drop [item] - Drop an item');
-                engine.printLine('  inventory, i - Show your inventory');
-                engine.printLine('  use [item] - Use an item');
-                engine.printLine('  use [item] on [target] - Use an item on a target');
-                engine.printLine('  talk [character] - Talk to a character');
-                engine.printLine('  save [slot] - Save the game');
-                engine.printLine('  load [slot] - Load a saved game');
-                engine.printLine('  restart - Restart the game');
-                engine.printLine('  quit - Quit the game');
-                engine.printLine('  help - Show this help');
+                engine.printLine('{{bold}}Available commands:{{font_reset}}');
+                engine.printLine('  {{green}}look{{color_reset}}, {{green}}l{{color_reset}} - Look around the current room');
+                engine.printLine('  {{green}}go [direction]{{color_reset}} - Move in a direction (north, south, east, west, etc.)');
+                engine.printLine('  {{green}}take [item]{{color_reset}} - Take an item');
+                engine.printLine('  {{green}}drop [item]{{color_reset}} - Drop an item');
+                engine.printLine('  {{green}}inventory{{color_reset}}, {{green}}i{{color_reset}} - Show your inventory');
+                engine.printLine('  {{green}}use [item]{{color_reset}} - Use an item');
+                engine.printLine('  {{green}}use [item] on [target]{{color_reset}} - Use an item on a target');
+                engine.printLine('  {{green}}talk [character]{{color_reset}} - Talk to a character');
+                engine.printLine('  {{green}}save [slot]{{color_reset}} - Save the game');
+                engine.printLine('  {{green}}load [slot]{{color_reset}} - Load a saved game');
+                engine.printLine('  {{green}}restart{{color_reset}} - Restart the game');
+                engine.printLine('  {{green}}quit{{color_reset}} - Quit the game');
+                engine.printLine('  {{green}}help{{color_reset}} - Show this help');
             });
 
             // Look command
@@ -1351,7 +1593,7 @@
                     return;
                 }
                 
-                engine.printLine('You are carrying:');
+                engine.printLine('{{bold}}You are carrying:{{font_reset}}');
                 for (const itemId of engine.state.inventory) {
                     const item = engine.world.items.get(itemId);
                     if (item) {
@@ -1501,7 +1743,7 @@
 
             // Quit command
             this.registerCommand('quit', (args, engine) => {
-                engine.printLine('Goodbye!');
+                engine.printLine('{{green}}Goodbye!{{color_reset}}');
                 if (engine.env === 'node') {
                     engine.rl.close();
                 } else {

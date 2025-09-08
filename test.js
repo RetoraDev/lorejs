@@ -6,8 +6,8 @@ const game = new LORE();
 // Define some rooms
 const room1 = {
   id: "room1",
-  name: "The Forest",
-  description: "You are in a dense forest. The trees are tall and the air is fresh. A path leads north.",
+  name: "{{bold}}{{red}}The Forest{{font_reset}}",
+  description: "You are in a {{green}}dense forest{{color_reset}}. The trees are {{bold}}tall{{font_reset}} and the air is {{cyan}}fresh{{color_reset}}. A path leads {{yellow}}north{{color_reset}}.",
   exits: {
     north: "room2"
   },
@@ -16,8 +16,8 @@ const room1 = {
 
 const room2 = {
   id: "room2",
-  name: "The Clearing",
-  description: "You are in a peaceful clearing. A small cabin stands to the east.",
+  name: "{{bold}}{{blue}}The Clearing{{font_reset}}",
+  description: "You are in a {{green}}peaceful clearing{{color_reset}}. A small cabin stands to the {{yellow}}east{{color_reset}}.",
   exits: {
     south: "room1",
     east: "room3"
@@ -26,8 +26,8 @@ const room2 = {
 
 const room3 = {
   id: "room3",
-  name: "The Cabin",
-  description: "You are inside a small cabin. It's cozy but empty.",
+  name: "{{bold}}{{magenta}}The Cabin{{font_reset}}",
+  description: "You are inside a {{underline}}small cabin{{font_reset}}. It's {{italic}}cozy{{font_reset}} but {{red}}empty{{color_reset}}.",
   exits: {
     west: "room2"
   },
@@ -37,19 +37,19 @@ const room3 = {
 // Define some items
 const torch = {
   id: "torch",
-  name: "Torch",
+  name: "{{red}}Torch{{color_reset}}",
   takeable: true,
   use: (state, engine) => {
-    engine.printLine("The torch flickers brightly, illuminating the area.");
+    engine.printLine("The {{red}}torch{{color_reset}} {{yellow}}flickers brightly{{color_reset}}, illuminating the area.");
     return true;
   }
 };
 
 const key = {
   id: "key",
-  name: "Rusty Key",
+  name: "{{yellow}}Rusty Key{{color_reset}}",
   takeable: true,
-  description: "An old, rusty key. It might unlock something."
+  description: "An {{italic}}old, rusty key{{font_reset}}. It might unlock something."
 };
 
 // Add elements to the game
