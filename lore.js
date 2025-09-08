@@ -106,7 +106,7 @@
   };
 
   // Core Engine Class
-  class LOREEngine {
+  class Game {
     constructor(options = {}) {
       this.state = {
         currentRoom: null,
@@ -177,35 +177,36 @@
       this.terminalElement = document.createElement("div");
       this.terminalElement.className = "lore-terminal";
       this.terminalElement.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: ${this.theme["--lore-bg-color"]};
-                color: ${this.theme["--lore-text-color"]};
-                font-family: ${this.theme["--lore-font-family"]};
-                font-size: ${this.theme["--lore-font-size"]};
-                overflow: auto;
-                padding: 20px;
-                box-sizing: border-box;
-            `;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: ${this.theme["--lore-bg-color"]};
+        color: ${this.theme["--lore-text-color"]};
+        font-family: ${this.theme["--lore-font-family"]};
+        font-size: ${this.theme["--lore-font-size"]};
+        overflow: auto;
+        padding: 20px;
+        box-sizing: border-box;
+      `;
 
       this.outputElement = document.createElement("div");
       this.outputElement.className = "lore-output";
       this.outputElement.style.cssText = `
-                height: calc(100% - 60px);
-                overflow-y: auto;
-                margin-bottom: 10px;
-                white-space: pre-wrap;
-            `;
+        height: calc(100% - 60px);
+        overflow-y: auto;
+        margin-bottom: 10px;
+        white-space: pre-wrap;
+      `;
 
       this.inputContainer = document.createElement("div");
       this.inputContainer.className = "lore-input-container";
       this.inputContainer.style.cssText = `
-                display: flex;
-                align-items: center;
-            `;
+        display: flex;
+        align-items: center;
+        background: transparent;
+      `;
 
       this.promptElement = document.createElement("span");
       this.promptElement.className = "lore-prompt";
@@ -216,15 +217,15 @@
       this.inputElement.className = "lore-input";
       this.inputElement.type = "text";
       this.inputElement.style.cssText = `
-                flex: 1;
-                background: transparent;
-                border: none;
-                outline: none;
-                color: ${this.theme["--lore-input-color"]};
-                font-family: ${this.theme["--lore-font-family"]};
-                font-size: ${this.theme["--lore-font-size"]};
-                margin-left: 5px;
-            `;
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: ${this.theme["--lore-input-color"]};
+        font-family: ${this.theme["--lore-font-family"]};
+        font-size: ${this.theme["--lore-font-size"]};
+        margin-left: 5px;
+      `;
 
       // Assemble terminal
       this.inputContainer.appendChild(this.promptElement);
@@ -262,9 +263,14 @@
     setupBrowserEvents() {
       this.inputElement.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
-          this.processInput(this.inputElement.value);
-          this.inputElement.value = '';
-          e.preventDefault();
+          if (!this.animationState.isAnimating) {
+            this.processInput(this.inputElement.value);
+            this.inputElement.value = '';
+            e.preventDefault();
+          } else {
+            this.skipAnimation();
+            e.preventDefault();
+          }
         } else if (e.key === 'ArrowUp') {
           this.navigateHistory(-1);
           e.preventDefault();
@@ -631,6 +637,9 @@
     processAnimationQueue() {
       if (this.animationState.animationQueue.length === 0) {
         this.animationState.isAnimating = false;
+        if (this.env === "node") {
+          this.rl.prompt();
+        }
         return;
       }
     
@@ -776,7 +785,6 @@
           }
         }, this.config.typingSpeed);
       } else {
-        // Node.js implementation
         this.animationState.currentAnimation = setInterval(() => {
           if (index >= text.length) {
             clearInterval(this.animationState.currentAnimation);
@@ -2054,5 +2062,14 @@
     }
   }
 
-  return LOREEngine;
+  return {
+    VERSION,
+    STORAGE_KEY,
+    DEFAULT_PROMPT,
+    DEFAULT_THEME,
+    ANSI_COLORS,
+    ANSI_STYLES,
+    Utils: utils,
+    Game
+  };
 });

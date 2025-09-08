@@ -1,7 +1,7 @@
 const LORE = require("./lore.js");
 
 // Create a new game instance
-const game = new LORE();
+const game = new LORE.Game();
 
 // Define some rooms
 const room1 = {
