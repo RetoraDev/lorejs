@@ -4,4 +4,5 @@ const LORE = require("./lore.js");
 const game = new LORE.Game();
 
 // Start the game
-game.loadNovel("./sample/sample_novel.js");
+game.loadTheme("./sample/sample_theme.js");
+game.print('Sample Theme');

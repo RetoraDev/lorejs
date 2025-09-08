@@ -18,3 +18,4 @@ yarn-error.log
 *.old
 *.old.html
 *.old.js
+plugin_test.js

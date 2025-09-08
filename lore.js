@@ -54,20 +54,20 @@
   };
 
   // Utility functions
-  const utils = {
+  const Utils = {
     isBrowser: typeof window !== "undefined" && typeof document !== "undefined",
     isNode: typeof process !== "undefined" && process.versions && process.versions.node,
-    deepClone: function (obj) {
-      return JSON.parse(JSON.stringify(obj));
+    deepClone(obj) {
+      return { ...obj };
     },
-    uuid: function () {
+    uuid() {
       return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
         const r = (Math.random() * 16) | 0;
         const v = c === "x" ? r : (r & 0x3) | 0x8;
         return v.toString(16);
       });
     },
-    debounce: function (func, wait) {
+    debounce(func, wait) {
       let timeout;
       return function executedFunction(...args) {
         const later = () => {
@@ -78,8 +78,7 @@
         timeout = setTimeout(later, wait);
       };
     },
-    // Color name to hex mapping
-    colorNameToHex: function (color) {
+    colorNameToHex(color) {
       const colors = {
         black: "#000000",
         red: "#ff0000",
@@ -92,8 +91,7 @@
       };
       return colors[color.toLowerCase()] || color;
     },
-    // Check if a string is a valid color
-    isValidColor: function (color) {
+    isValidColor(color) {
       if (!color) return false;
 
       // Check if it's a named color
@@ -102,6 +100,44 @@
 
       // Check if it's a hex color
       return /^#?([0-9A-F]{3}){1,2}$/i.test(color);
+    },
+    isURL(value) {
+      return value.startsWith("file://") || value.startsWith("./") || value.startsWith("../") || value.startsWith("http://") || value.startsWith("https://");
+    },
+    deserializeFunction(func) {
+      if (typeof func === "string") {
+        return new Function(`const state = arguments[0]; const engine = arguments[1]; ${func}`);
+      } else {
+        return func;
+      }
+    },
+    async loadModule(url) {
+      try {
+        const response = await fetch(url);
+        const content = await response.text();
+        if (!response.ok) {
+          console.error("File at", url, "not found!");
+          return {};
+        }
+        const module = new Function(`
+          const module = {
+            exports: {}
+          };
+          
+          try {
+            ${content}
+          } catch(error) {
+            return module;
+            throw error;
+          }
+          
+          return module;
+        `)();
+        return module.exports;
+      } catch(error) {
+        console.error("Error loading module from ", url, error);
+        return {};
+      }
     }
   };
 
@@ -136,7 +172,7 @@
       };
 
       this.plugins = new Map();
-      this.theme = utils.deepClone(DEFAULT_THEME);
+      this.theme = Utils.deepClone(DEFAULT_THEME);
       this.historyIndex = -1;
       this.isRunning = false;
       this.outputBuffer = [];
@@ -159,9 +195,9 @@
       };
 
       // Initialize based on environment
-      if (utils.isBrowser) {
+      if (Utils.isBrowser) {
         this.initBrowser();
-      } else if (utils.isNode) {
+      } else if (Utils.isNode) {
         this.initNode();
       }
 
@@ -287,7 +323,7 @@
       });
     
       // Handle window resize
-      window.addEventListener('resize', utils.debounce(() => {
+      window.addEventListener('resize', Utils.debounce(() => {
         this.outputElement.scrollTop = this.outputElement.scrollHeight;
       }, 250));
     
@@ -371,13 +407,13 @@
             result += '</span>';
             this.formattingState.color = null;
           }
-        } else if (utils.isValidColor(tag)) {
+        } else if (Utils.isValidColor(tag)) {
           // Close previous color span if exists
           if (this.formattingState.color) {
             result += '</span>';
           }
     
-          const color = utils.colorNameToHex(tag.replace('#', ''));
+          const color = Utils.colorNameToHex(tag.replace('#', ''));
           result += `<span style="color: ${color}">`;
           this.formattingState.color = color;
         } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
@@ -458,7 +494,7 @@
               underline: false
             };
           }
-        } else if (utils.isValidColor(tag)) {
+        } else if (Utils.isValidColor(tag)) {
           const colorName = tag.replace('#', '');
           if (ANSI_COLORS[colorName]) {
             result += ANSI_COLORS[colorName];
@@ -536,7 +572,7 @@
       if (this.world.commands.has(normalizedCommand)) {
         try {
           const commandFn = this.world.commands.get(normalizedCommand);
-          commandFn(args, this);
+          commandFn.call(this, args, this);
         } catch (error) {
           this.printLine(`Error executing command: ${error.message}`);
           if (this.config.debug) {
@@ -742,8 +778,8 @@
                 outputText += '</span>';
               } else if (tag === 'color_reset') {
                 outputText += '</span>';
-              } else if (utils.isValidColor(tag)) {
-                const color = utils.colorNameToHex(tag.replace('#', ''));
+              } else if (Utils.isValidColor(tag)) {
+                const color = Utils.colorNameToHex(tag.replace('#', ''));
                 outputText += `<span style="color: ${color}">`;
               } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
                 outputText += '<strong>';
@@ -822,7 +858,7 @@
                 process.stdout.write(ANSI_STYLES.reset);
               } else if (tag === 'color_reset') {
                 process.stdout.write(ANSI_STYLES.reset);
-              } else if (utils.isValidColor(tag)) {
+              } else if (Utils.isValidColor(tag)) {
                 const colorName = tag.replace('#', '');
                 if (ANSI_COLORS[colorName]) {
                   process.stdout.write(ANSI_COLORS[colorName]);
@@ -1055,7 +1091,7 @@
     displayAnimatedImage(frames, options = {}) {
       const { frameTime = 200, loop = true, reverse = false, mirror = false } = options;
 
-      const animationId = utils.uuid();
+      const animationId = Utils.uuid();
       let currentFrame = 0;
       let direction = 1;
       let frameSequence = [...frames];
@@ -1350,7 +1386,7 @@
     // Save/load system
     saveGame(slot = "default", silent = false) {
       const saveData = {
-        state: utils.deepClone(this.state),
+        state: Utils.deepClone(this.state),
         timestamp: Date.now(),
         slot: slot
       };
@@ -1479,7 +1515,7 @@
     // World building methods
     addRoom(room) {
       if (!room.id) {
-        room.id = utils.uuid();
+        room.id = Utils.uuid();
       }
       this.world.rooms.set(room.id, room);
       return room.id;
@@ -1487,15 +1523,16 @@
 
     addItem(item) {
       if (!item.id) {
-        item.id = utils.uuid();
+        item.id = Utils.uuid();
       }
+      item.use = Utils.deserializeFunction(item.use);
       this.world.items.set(item.id, item);
       return item.id;
     }
 
     addCharacter(character) {
       if (!character.id) {
-        character.id = utils.uuid();
+        character.id = Utils.uuid();
       }
       this.world.characters.set(character.id, character);
       return character.id;
@@ -1503,7 +1540,7 @@
 
     addEvent(event) {
       if (!event.id) {
-        event.id = utils.uuid();
+        event.id = Utils.uuid();
       }
       this.world.events.set(event.id, event);
       return event.id;
@@ -1512,30 +1549,9 @@
     // Plugin system
     async loadPlugin(plugin) {
       try {
-        // If plugin is a URL, fetch it
-        if (typeof plugin === "string" && (plugin.startsWith("http://") || plugin.startsWith("https://"))) {
-          if (this.env === "browser") {
-            const response = await fetch(plugin);
-            plugin = await response.json();
-          } else {
-            const https = require("https");
-            plugin = await new Promise((resolve, reject) => {
-              https
-                .get(plugin, response => {
-                  let data = "";
-                  response.on("data", chunk => (data += chunk));
-                  response.on("end", () => resolve(JSON.parse(data)));
-                })
-                .on("error", reject);
-            });
-          }
-        }
-
-        // If plugin is a string, parse as JSON
-        if (typeof plugin === "string") {
-          plugin = JSON.parse(plugin);
-        }
-
+        // Prepare module
+        plugin = await this.prepareModule(plugin);
+        
         // Register plugin
         if (plugin.id && !this.plugins.has(plugin.id)) {
           this.plugins.set(plugin.id, plugin);
@@ -1643,28 +1659,10 @@
     }
 
     // Theme system
-    loadTheme(theme) {
+    async loadTheme(theme) {
       try {
-        // If theme is a URL, fetch it
-        if (typeof theme === "string" && (theme.startsWith("http://") || theme.startsWith("https://"))) {
-          if (this.env === "browser") {
-            // In browser, we would need to use fetch but this is complex due to async nature
-            // For simplicity, we'll just support object themes in this implementation
-            this.printLine("URL themes are not supported in this implementation.");
-            return false;
-          } else {
-            const https = require("https");
-            // Async operation would be complex here, so we'll just support object themes
-            this.printLine("URL themes are not supported in this implementation.");
-            return false;
-          }
-        }
-
-        // If theme is a string, parse as JSON
-        if (typeof theme === "string") {
-          theme = JSON.parse(theme);
-        }
-
+        theme = await this.prepareModule(theme);
+        
         // Apply theme
         this.theme = { ...this.theme, ...theme };
 
@@ -1682,6 +1680,8 @@
 
           this.promptElement.style.color = this.theme["--lore-prompt-color"];
           this.inputElement.style.color = this.theme["--lore-input-color"];
+        } else {
+          // TODO: Load theme for nodejs too
         }
 
         this.printLine("Theme applied.");
@@ -1693,6 +1693,33 @@
         }
         return false;
       }
+    }
+    
+    // Prepare modules to be used
+    async prepareModule(content) {
+      // If content is a URL, fetch it
+      if (typeof content === "string" && Utils.isURL(content)) {
+        if (content.endsWith(".js")) {
+          try {
+            if (this.env === "browser") {
+              content = await Utils.loadModule(content);
+            } else {
+              content = require(content);
+            }
+          } catch(error) {
+            this.printLine(`{{red}}Couldn't prepare module\n${error.message}`);
+            return {};
+          }
+        } else {
+          this.printLine(`{{red}}Module loaded from URL must be a JavaScript (.js) file{{color_reset}}`);
+          return {};
+        }
+      }
+
+      if (typeof content === "string") {
+        content = JSON.parse(novel);
+      }
+      return content;
     }
 
     // Command registration
@@ -2012,30 +2039,8 @@
     // Novel loading
     async loadNovel(novel) {
       try {
-        // If novel is a URL, fetch it
-        if (typeof novel === "string" && (novel.startsWith("http://") || novel.startsWith("https://"))) {
-          if (this.env === "browser") {
-            const response = await fetch(novel);
-            novel = await response.json();
-          } else {
-            const https = require("https");
-            novel = await new Promise((resolve, reject) => {
-              https
-                .get(novel, response => {
-                  let data = "";
-                  response.on("data", chunk => (data += chunk));
-                  response.on("end", () => resolve(JSON.parse(data)));
-                })
-                .on("error", reject);
-            });
-          }
-        }
-
-        // If novel is a string, parse as JSON
-        if (typeof novel === "string") {
-          novel = JSON.parse(novel);
-        }
-
+        novel = await this.prepareModule(novel);
+        
         // Clear existing world
         this.world.rooms.clear();
         this.world.items.clear();
@@ -2076,9 +2081,11 @@
 
         if (novel.startRoom) {
           this.state.currentRoom = novel.startRoom;
+        } else {
+          this.state.currentRoom = null;
         }
-
-        this.printLine(`Novel loaded: ${novel.title || "Untitled"}`);
+        
+        this.startGame(this.state.currentRoom);
         return true;
       } catch (error) {
         this.printLine(`Error loading novel: ${error.message}`);
@@ -2097,7 +2104,7 @@
     DEFAULT_THEME,
     ANSI_COLORS,
     ANSI_STYLES,
-    Utils: utils,
+    Utils,
     Game
   };
 });
