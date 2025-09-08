@@ -1,22 +1,15 @@
 {
   "state": {
     "currentRoom": "room2",
-    "inventory": [
-      "key"
-    ],
+    "inventory": [],
     "flags": {},
     "variables": {},
     "history": [
-      "look",
       "go north",
-      "go east",
-      "take key",
-      "go back",
-      "look",
-      "go west"
+      "help"
     ],
-    "gameTime": 3
+    "gameTime": 1
   },
-  "timestamp": 1757344011495,
+  "timestamp": 1757344578503,
   "slot": "autosave"
 }

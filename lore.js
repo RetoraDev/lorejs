@@ -196,7 +196,7 @@
       this.outputElement.style.cssText = `
         height: calc(100% - 60px);
         overflow-y: auto;
-        margin-bottom: 10px;
+        margin-bottom: 20px;
         white-space: pre-wrap;
       `;
 
@@ -299,8 +299,13 @@
 
     setupNodeEvents() {
       this.rl.on('line', (input) => {
-        this.processInput(input);
-        this.rl.prompt();
+        if (this.animationState.isAnimating) {
+          this.skipAnimation();
+          this.rl.prompt();
+        } else {
+          this.processInput(input);
+          this.rl.prompt();
+        }
       }).on('close', () => {
         process.exit(0);
       });
@@ -643,33 +648,27 @@
         return;
       }
     
-      this.animationState.isAnimating = true;
       const animationItem = this.animationState.animationQueue.shift();
-      this.animateText(animationItem.text, animationItem.callback);
+      if (animationItem.instant) {
+        this.printInstantly(animationItem.text, animationItem.callback);
+        this.animationState.isAnimating = false;
+      } else {
+        this.animateText(animationItem.text, animationItem.callback);
+        this.animationState.isAnimating = true;
+      }
     }
 
     // Output methods
     print(text, instant = false) {
-      // Check if the text contains instant tags
-      const hasInstantTags = text.includes('{{instant}}');
-    
-      if (this.config.disableTextAnimation || instant || hasInstantTags) {
-        const formattedText = this.parseFormatting(text);
-    
-        if (this.env === 'browser') {
-          const div = document.createElement('div');
-          div.innerHTML = formattedText;
-          this.outputElement.appendChild(div);
-          this.outputElement.scrollTop = this.outputElement.scrollHeight;
-        } else {
-          process.stdout.write(formattedText);
-        }
+      if (this.config.disableTextAnimation) {
+        this.printInstantly(text);
         return;
       }
     
       // Add to animation queue
       this.animationState.animationQueue.push({
         text,
+        instant,
         callback: () => {
           if (this.env === 'browser') {
             this.outputElement.scrollTop = this.outputElement.scrollHeight;
@@ -865,6 +864,23 @@
       }
     }
     
+    printInstantly(text, callback) {
+      const formattedText = this.parseFormatting(text);
+    
+      if (this.env === 'browser') {
+        const div = document.createElement('div');
+        div.innerHTML = formattedText;
+        this.outputElement.appendChild(div);
+        this.outputElement.scrollTop = this.outputElement.scrollHeight;
+      } else {
+        process.stdout.write(formattedText);
+      }
+      
+      if (callback) {
+        callback();
+      }
+    }
+    
     updateLastLine(text) {
       if (this.env === 'browser') {
         const lines = this.outputElement.querySelectorAll('div');
@@ -1032,7 +1048,7 @@
         this.displayAnimatedImage(image, options);
       } else if (typeof image === "string") {
         // Static image
-        this.printLine(image);
+        this.printLine(image, true);
       }
     }
 
@@ -1066,7 +1082,7 @@
         // Display current frame
         const pre = this.env === "browser" ? '<pre style="white-space: pre; margin: 0;">' : "";
         const post = this.env === "browser" ? "</pre>" : "";
-        this.printLine(`${pre}${frameSequence[currentFrame]}${post}`);
+        this.printLine(`${pre}${frameSequence[currentFrame]}${post}`, true);
 
         if (this.env === "browser") {
           const elements = this.outputElement.querySelectorAll("pre, span");
@@ -1904,6 +1920,18 @@
         } else {
           engine.useItem(itemId);
         }
+      });
+
+      // Say
+      this.registerCommand("say", (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("You don't say");
+          return;
+        }
+        
+        const line = args.join(" ");
+        
+        engine.printLine(`You say:{{n}} - ${line}`);
       });
 
       // Talk command

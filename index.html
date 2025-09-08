@@ -3,14 +3,9 @@
   <head>
     <title>L.O.R.E. Example with Formatting</title>
     <style>
-      :root {
-        --lore-bg-color: #000000;
-        --lore-text-color: #ffffff;
-        --lore-prompt-color: #00ff00;
-        --lore-input-color: #ffffff;
-        --lore-font-family: "Courier New", monospace;
-        --lore-font-size: 16px;
-        --lore-border-color: #333333;
+      body {
+        margin: 0;
+        padding: 0;
       }
     </style>
   </head>
@@ -23,6 +18,7 @@
       // Define some rooms
       const room1 = {
         id: "room1",
+        image: "image",
         name: "{{bold}}{{red}}The Forest{{font_reset}}",
         description: "You are in a {{green}}dense forest{{color_reset}}. The trees are {{bold}}tall{{font_reset}} and the air is {{cyan}}fresh{{color_reset}}. A path leads {{yellow}}north{{color_reset}}.",
         exits: {
