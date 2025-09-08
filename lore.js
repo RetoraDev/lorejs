@@ -1,5 +1,5 @@
 // L.O.R.E. - Line-Oriented Recursive Engine
-// A text adventure engine for Node.js and browsers with markdown formatting
+// A text adventure engine for Node.js and browser
 
 (function (global, factory) {
   if (typeof module === "object" && typeof module.exports === "object") {
@@ -959,6 +959,17 @@
         this.animationState.isAnimating = false;
       }
     }
+    
+    updatePrompt(newPrompt) {
+      if (this.env === "browser") {
+        this.config.prompt = newPrompt;
+        this.promptElement.textContent = newPrompt;
+      } else {
+        this.config.prompt = newPrompt;
+        rl.setPrompt(newPrompt);
+        rl.prompt();
+      }
+    }
 
     // Game state management
     startGame(startRoomId) {
@@ -1680,6 +1691,10 @@
 
           this.promptElement.style.color = this.theme["--lore-prompt-color"];
           this.inputElement.style.color = this.theme["--lore-input-color"];
+          
+          if (this.theme.prompt) {
+            this.updatePrompt(this.theme.prompt);
+          }
         } else {
           // TODO: Load theme for nodejs too
         }
