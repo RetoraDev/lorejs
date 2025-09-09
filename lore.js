@@ -170,11 +170,13 @@
         commands: new Map(),
         keybindings: new Map()
       };
-
+      
       this.plugins = new Map();
       this.theme = { ...DEFAULT_THEME };
       this.historyIndex = -1;
+      this.queueIsRunning = false;
       this.isRunning = false;
+      this.outputQueue = [];
       this.outputBuffer = [];
       this.animationFrames = new Map();
       this.animationIntervals = new Map();
@@ -190,8 +192,7 @@
       // Animation state
       this.animationState = {
         isAnimating: false,
-        currentAnimation: null,
-        animationQueue: []
+        currentAnimation: null
       };
 
       // Initialize based on environment
@@ -676,51 +677,57 @@
       return prefix;
     }
     
-    processAnimationQueue() {
-      if (this.animationState.animationQueue.length === 0) {
-        this.animationState.isAnimating = false;
+    processOutputQueue() {
+      if (this.outputQueue.length === 0) {
+        this.queueIsRunning = false;
         if (this.env === "node") {
           this.rl.prompt();
         }
         return;
       }
-    
-      const animationItem = this.animationState.animationQueue.shift();
-      if (animationItem.instant) {
-        this.printInstantly(animationItem.text, animationItem.callback);
-        this.animationState.isAnimating = false;
+      this.queueIsRunning = true;
+      const nextItem = this.outputQueue.shift();
+      if (this.config.disableTextAnimation || nextItem.instant) {
+        if (nextItem.img) {
+          this.printImageInstantly(nextItem.text, nextItem.callback);
+        } else {
+          this.printInstantly(nextItem.text, nextItem.callback);
+        }
       } else {
-        this.animateText(animationItem.text, animationItem.callback);
-        this.animationState.isAnimating = true;
+        if (nextItem.img) {
+          this.animateImage(nextItem.text, nextItem.callback);
+          this.animationState.isAnimating = true;
+        } else {
+          this.animateText(nextItem.text, nextItem.callback);
+          this.animationState.isAnimating = true;
+        }
       }
     }
 
     // Output methods
-    print(text, instant = false) {
-      if (this.config.disableTextAnimation) {
-        this.printInstantly(text);
-        return;
-      }
-    
-      // Add to animation queue
-      this.animationState.animationQueue.push({
-        text,
-        instant,
-        callback: () => {
-          if (this.env === 'browser') {
-            this.outputElement.scrollTop = this.outputElement.scrollHeight;
-          }
+    print(text, instant = false, img = false) {
+      // Add
+      return new Promise((resolve, reject) => {
+        this.outputQueue.push({
+          text,
+          instant,
+          img,
+          callback: () => resolve()
+        });
+      
+        // Start loop if paused
+        if (!this.queueIsRunning) {
+          this.processOutputQueue();
         }
       });
-    
-      // Start animation if not already running
-      if (!this.animationState.isAnimating) {
-        this.processAnimationQueue();
-      }
     }
 
     printLine(text = '', instant = false) {
-      this.print(text + (this.env === 'browser' ? '<br>' : '\n'), instant);
+      return this.print(text + (this.env === 'browser' ? '<br>' : '\n'), instant);
+    }
+    
+    printImg(text, instant = false) {
+      return this.print(text, instant, true);
     }
     
     clearScreen() {
@@ -746,7 +753,7 @@
             clearInterval(this.animationState.currentAnimation);
             this.animationState.currentAnimation = null;
             if (callback) callback();
-            this.processAnimationQueue();
+            this.processOutputQueue();
             return;
           }
     
@@ -826,7 +833,7 @@
             clearInterval(this.animationState.currentAnimation);
             this.animationState.currentAnimation = null;
             if (callback) callback();
-            this.processAnimationQueue();
+            this.processOutputQueue();
             return;
           }
     
@@ -916,6 +923,68 @@
       if (callback) {
         callback();
       }
+      this.processOutputQueue();
+    }
+    
+    silentPrint(text, format = true) {
+      const formattedText = format ? this.parseFormatting(text) : text;
+    
+      if (this.env === 'browser') {
+        const div = document.createElement('div');
+        div.innerHTML = formattedText;
+        this.outputElement.appendChild(div);
+        this.outputElement.scrollTop = this.outputElement.scrollHeight;
+      } else {
+        process.stdout.write(formattedText);
+      }
+    }
+    
+    printTextLineByLine(text, callback) {
+      const lines = text.split('\n');
+      let index = 0;
+      
+      const printNextLine = () => {
+        if (index >= lines.length) {
+          callback && callback();
+        } else {
+          this.silentPrint(lines[index]);
+          setTimeout(() => printNextLine(), this.config.typingSpeed);
+        }
+        index ++;
+      };
+      
+      printNextLine();
+    }
+    
+    animateImage(text, callback) {
+      const isAnimation = typeof text != "string";
+      const firstFrame = isAnimation ? text[0] : text;
+      const animationFrames = isAnimation ? text : [ text ];
+      
+      this.printTextLineByLine(firstFrame, () => {
+        callback && callback();
+        this.animationState.isAnimating = false;
+        
+        if (isAnimation) {
+          {
+            // TODO: Animate the ascii art array
+            // May be tricky to do it in nodejs but I have a plan
+            // We can memorize what lines belong to the animation
+            // This way it can work in browser and in nodejs
+            // And then update that lines with the content of next frame lines
+            // But next frame can have a different amount of lines
+            // To handle it we can clear all lines and update lines content later
+            // The first frame determinates the amount of lines
+            // The animation will loop infinitely so we start the animation and the console keeps printing
+            // For performance we can a config variable that says how many animations can be played at the same time
+            // Then based on that keep plaing only the most recent N animations and reset the others to the first frame
+            // I think 2 animations will be fine by default, 
+          }
+          this.processOutputQueue();
+        } else {
+          this.processOutputQueue();
+        }
+      });
     }
     
     updateLastLine(text) {
@@ -935,13 +1004,13 @@
     }
     
     skipAnimation() {
-      if (this.animationState.currentAnimation) {
+      if (this.animationState.currentAnimation && this.animationState.isAnimating) {
         clearInterval(this.animationState.currentAnimation);
         this.animationState.currentAnimation = null;
     
         // Process all remaining animation items instantly
-        while (this.animationState.animationQueue.length > 0) {
-          const animationItem = this.animationState.animationQueue.shift();
+        while (this.outputQueue.length > 0) {
+          const animationItem = this.outputQueue.shift();
           const formattedText = this.parseFormatting(animationItem.text);
     
           if (this.env === 'browser') {
@@ -1088,80 +1157,7 @@
         this.printLine(`Exits: ${exitList}`);
       }
     }
-
-    // Image display
-    displayImage(image, options = {}) {
-      if (Array.isArray(image)) {
-        // Animated image
-        this.displayAnimatedImage(image, options);
-      } else if (typeof image === "string") {
-        // Static image
-        this.printLine(image, true);
-      }
-    }
-
-    displayAnimatedImage(frames, options = {}) {
-      const { frameTime = 200, loop = true, reverse = false, mirror = false } = options;
-
-      const animationId = Utils.uuid();
-      let currentFrame = 0;
-      let direction = 1;
-      let frameSequence = [...frames];
-
-      if (reverse) {
-        frameSequence.reverse();
-      }
-
-      if (mirror) {
-        frameSequence = [...frameSequence, ...frameSequence.slice(1, -1).reverse()];
-      }
-
-      const animate = () => {
-        if (!this.animationIntervals.has(animationId)) return;
-
-        // Clear previous frame
-        if (this.env === "browser") {
-          const lastImage = this.outputElement.querySelector(`.lore-animation-${animationId}`);
-          if (lastImage) {
-            this.outputElement.removeChild(lastImage);
-          }
-        }
-
-        // Display current frame
-        const pre = this.env === "browser" ? '<pre style="white-space: pre; margin: 0;">' : "";
-        const post = this.env === "browser" ? "</pre>" : "";
-        this.printLine(`${pre}${frameSequence[currentFrame]}${post}`, true);
-
-        if (this.env === "browser") {
-          const elements = this.outputElement.querySelectorAll("pre, span");
-          const lastElement = elements[elements.length - 1];
-          if (lastElement) {
-            lastElement.classList.add(`lore-animation-${animationId}`);
-          }
-        }
-
-        // Update frame index
-        currentFrame += direction;
-
-        // Handle end of animation
-        if (currentFrame >= frameSequence.length) {
-          if (loop) {
-            currentFrame = 0;
-          } else {
-            this.stopAnimation(animationId);
-            return;
-          }
-        }
-      };
-
-      // Start animation
-      this.animationIntervals.set(animationId, setInterval(animate, frameTime));
-      this.animationFrames.set(animationId, frameSequence);
-
-      // Run first frame immediately
-      animate();
-    }
-
+    
     stopAnimation(animationId) {
       if (this.animationIntervals.has(animationId)) {
         clearInterval(this.animationIntervals.get(animationId));

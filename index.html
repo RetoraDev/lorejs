@@ -2,18 +2,63 @@
 <html>
   <head>
     <title>L.O.R.E. Engine</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width user-scalable=no">
     <style>
       body {
         margin: 0;
         padding: 0;
       }
     </style>
-  </head>
+    <script src="eruda.js"></script>
   <body>
     <script src="lore.js"></script>
+    <script>eruda.init()</script>
     <script>
       const game = new LORE.Game();
-      game.loadNovel('./sample/sample_novel.js');
+      
+      const staticImg = 
+`+========+
++        +
++        +
++        +
++        +
++========+`;
+
+      const animatedImg = [
+`+========+
++        +
++        +
++        +
++========+`,
+`+========+
++        +
++ .      +
++        +
++========+`,
+`+========+
++        +
++ ..     +
++        +
++========+`,
+`+========+
++        +
++ ...    +
++        +
++========+`
+      ];
+      
+      game.printLine("Console print test");
+      game.printLine("------------------\n");
+      game.printLine("Testing static image print:");
+      game.printImg(staticImg);
+      game.printLine("Testing animated image print:");
+      game.printImg(animatedImg);
+      game.printLine("Testing text print:")
+      game.printLine("Lore.js is a lightweight, modular REPL style text adventure game engine for Node.JS and Browsers");
+      game.printLine("------------------\n");
+      
+      //game.loadNovel('./sample/sample_novel.js');
     </script>
   </body>
 </html>
