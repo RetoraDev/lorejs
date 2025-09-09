@@ -939,6 +939,22 @@
       }
     }
     
+    updateLastLine(text) {
+      if (this.env === 'browser') {
+        const lines = this.outputElement.querySelectorAll('div');
+        if (lines.length > 0) {
+          const lastLine = lines[lines.length - 1];
+          lastLine.innerHTML = this.parseFormatting(text);
+        } else {
+          this.print(text, true);
+        }
+      } else {
+        // Move cursor up one line and clear line
+        process.stdout.write('\x1B[1A\x1B[2K');
+        process.stdout.write(this.parseFormatting(text) + '\n');
+      }
+    }
+    
     printTextLineByLine(text, callback) {
       const lines = text.split('\n');
       let index = 0;
@@ -957,49 +973,150 @@
     }
     
     animateImage(text, callback) {
-      const isAnimation = typeof text != "string";
+      const isAnimation = Array.isArray(text);
       const firstFrame = isAnimation ? text[0] : text;
-      const animationFrames = isAnimation ? text : [ text ];
+      const animationFrames = isAnimation ? text : [text];
+      const animationId = Utils.uuid();
       
+      // Print the first frame
       this.printTextLineByLine(firstFrame, () => {
-        callback && callback();
-        this.animationState.isAnimating = false;
-        
-        if (isAnimation) {
-          {
-            // TODO: Animate the ascii art array
-            // May be tricky to do it in nodejs but I have a plan
-            // We can memorize what lines belong to the animation
-            // This way it can work in browser and in nodejs
-            // And then update that lines with the content of next frame lines
-            // But next frame can have a different amount of lines
-            // To handle it we can clear all lines and update lines content later
-            // The first frame determinates the amount of lines
-            // The animation will loop infinitely so we start the animation and the console keeps printing
-            // For performance we can a config variable that says how many animations can be played at the same time
-            // Then based on that keep plaing only the most recent N animations and reset the others to the first frame
-            // I think 2 animations will be fine by default, 
-          }
+        if (!isAnimation) {
+          // Single image, not an animation
+          callback && callback();
+          this.animationState.isAnimating = false;
           this.processOutputQueue();
-        } else {
-          this.processOutputQueue();
+          return;
         }
+        
+        // Animation setup
+        let currentFrame = 0;
+        let animationLines = firstFrame.split('\n');
+        const totalLines = animationLines.length;
+        
+        // Store animation state
+        this.animationFrames.set(animationId, {
+          frames: animationFrames,
+          currentFrame: 0,
+          totalLines: totalLines,
+          elementIds: []
+        });
+        
+        // In browser, we need to track which DOM elements belong to this animation
+        if (this.env === 'browser') {
+          const outputLines = this.outputElement.querySelectorAll('div');
+          const startIndex = Math.max(0, outputLines.length - totalLines);
+          
+          for (let i = startIndex; i < outputLines.length; i++) {
+            outputLines[i].classList.add(`lore-animation-${animationId}`);
+            this.animationFrames.get(animationId).elementIds.push(i);
+          }
+        }
+        
+        // Start animation loop
+        const animate = () => {
+          currentFrame = (currentFrame + 1) % animationFrames.length;
+          
+          if (this.env === 'browser') {
+            this.updateBrowserAnimation(animationId, currentFrame);
+          } else {
+            this.updateNodeAnimation(animationId, currentFrame);
+          }
+          
+          this.animationFrames.get(animationId).currentFrame = currentFrame;
+        };
+        
+        // Start animation interval
+        const intervalId = setInterval(animate, 200); // 5 FPS by default
+        this.animationIntervals.set(animationId, intervalId);
+        
+        // Store callback to call when animation should stop
+        this.animationFrames.get(animationId).callback = callback;
+        
+        // Continue queue
+        this.processOutputQueue();
       });
     }
     
-    updateLastLine(text) {
-      if (this.env === 'browser') {
-        const lines = this.outputElement.querySelectorAll('div');
-        if (lines.length > 0) {
-          const lastLine = lines[lines.length - 1];
-          lastLine.innerHTML = this.parseFormatting(text);
-        } else {
-          this.print(text, true);
+    updateBrowserAnimation(animationId, frameIndex) {
+      if (!this.animationFrames.has(animationId)) return;
+      
+      const animation = this.animationFrames.get(animationId);
+      const frame = animation.frames[frameIndex];
+      const frameLines = frame.split('\n');
+      
+      // Get all elements that are part of this animation
+      const elements = this.outputElement.querySelectorAll(`.lore-animation-${animationId}`);
+      
+      // Update each line
+      for (let i = 0; i < Math.min(elements.length, frameLines.length); i++) {
+        elements[i].textContent = frameLines[i];
+      }
+      
+      // If the new frame has more lines, add them
+      if (frameLines.length > elements.length) {
+        for (let i = elements.length; i < frameLines.length; i++) {
+          const newElement = document.createElement('div');
+          newElement.textContent = frameLines[i];
+          newElement.classList.add(`lore-animation-${animationId}`);
+          this.outputElement.appendChild(newElement);
+          animation.elementIds.push(-1); // Mark as new element
         }
-      } else {
-        // Move cursor up one line and clear line
-        process.stdout.write('\x1B[1A\x1B[2K');
-        process.stdout.write(this.parseFormatting(text) + '\n');
+      }
+      
+      // If the new frame has fewer lines, hide the extra ones
+      for (let i = frameLines.length; i < elements.length; i++) {
+        elements[i].textContent = '';
+      }
+    }
+    
+    updateNodeAnimation(animationId, frameIndex) {
+      if (!this.animationFrames.has(animationId)) return;
+      
+      const animation = this.animationFrames.get(animationId);
+      const frame = animation.frames[frameIndex];
+      const frameLines = frame.split('\n');
+      
+      // Move cursor up to the start of the animation
+      process.stdout.write(`\x1B[${animation.totalLines}A`);
+      
+      // Print the new frame
+      for (let i = 0; i < frameLines.length; i++) {
+        // Clear the line and print new content
+        process.stdout.write(`\x1B[2K${frameLines[i]}\n`);
+      }
+      
+      // If the new frame has fewer lines, clear the remaining lines
+      for (let i = frameLines.length; i < animation.totalLines; i++) {
+        process.stdout.write(`\x1B[2K\n`);
+      }
+      
+      // Update the total lines if the new frame has more lines
+      if (frameLines.length > animation.totalLines) {
+        animation.totalLines = frameLines.length;
+      }
+    }
+    
+    stopAnimation(animationId) {
+      if (this.animationIntervals.has(animationId)) {
+        clearInterval(this.animationIntervals.get(animationId));
+        this.animationIntervals.delete(animationId);
+      }
+    
+      if (this.animationFrames.has(animationId)) {
+        const animation = this.animationFrames.get(animationId);
+        
+        // Call the callback if it exists
+        if (animation.callback) {
+          animation.callback();
+        }
+        
+        this.animationFrames.delete(animationId);
+      }
+    
+      // Clear the animation from output in browser
+      if (this.env === "browser") {
+        const elements = this.outputElement.querySelectorAll(`.lore-animation-${animationId}`);
+        elements.forEach(el => el.remove());
       }
     }
     
