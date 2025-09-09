@@ -1,0 +1,11 @@
+{
+  "name": "lorejs",
+  "version": "1.0.0",
+  "description": "A text adventure engine for Node.js and browser",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "author": "RetoraDev",
+  "license": "ISC"
+}
