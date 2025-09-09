@@ -16,49 +16,7 @@
     <script>eruda.init()</script>
     <script>
       const game = new LORE.Game();
-      
-      const staticImg = 
-`+========+
-+        +
-+        +
-+        +
-+        +
-+========+`;
-
-      const animatedImg = [
-`+========+
-+        +
-+        +
-+        +
-+========+`,
-`+========+
-+        +
-+ .      +
-+        +
-+========+`,
-`+========+
-+        +
-+ ..     +
-+        +
-+========+`,
-`+========+
-+        +
-+ ...    +
-+        +
-+========+`
-      ];
-      
-      game.printLine("Console print test");
-      game.printLine("------------------\n");
-      game.printLine("Testing static image print:");
-      game.printImg(staticImg);
-      game.printLine("Testing animated image print:");
-      game.printImg(animatedImg);
-      game.printLine("Testing text print:")
-      game.printLine("Lore.js is a lightweight, modular REPL style text adventure game engine for Node.JS and Browsers");
-      game.printLine("------------------\n");
-      
-      //game.loadNovel('./sample/sample_novel.js');
+      game.loadNovel('./sample/sample_novel.js');
     </script>
   </body>
 </html>

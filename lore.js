@@ -159,7 +159,8 @@
         saveSlots: options.saveSlots || 3,
         typingSpeed: options.typingSpeed || 30,
         debug: options.debug || false,
-        disableTextAnimation: options.disableTextAnimation || false
+        disableTextAnimation: options.disableTextAnimation || false,
+        animationLoopCount: options.animationLoopCount || 3
       };
 
       this.world = {
@@ -706,7 +707,6 @@
 
     // Output methods
     print(text, instant = false, img = false) {
-      // Add
       return new Promise((resolve, reject) => {
         this.outputQueue.push({
           text,
@@ -908,7 +908,7 @@
       }
     }
     
-    printInstantly(text, callback) {
+    printInstantly(text, callback, processQueue = true) {
       const formattedText = this.parseFormatting(text);
     
       if (this.env === 'browser') {
@@ -920,23 +920,8 @@
         process.stdout.write(formattedText);
       }
       
-      if (callback) {
-        callback();
-      }
-      this.processOutputQueue();
-    }
-    
-    silentPrint(text, format = true) {
-      const formattedText = format ? this.parseFormatting(text) : text;
-    
-      if (this.env === 'browser') {
-        const div = document.createElement('div');
-        div.innerHTML = formattedText;
-        this.outputElement.appendChild(div);
-        this.outputElement.scrollTop = this.outputElement.scrollHeight;
-      } else {
-        process.stdout.write(formattedText);
-      }
+      callback && callback();
+      processQueue && this.processOutputQueue();
     }
     
     updateLastLine(text) {
@@ -963,8 +948,12 @@
         if (index >= lines.length) {
           callback && callback();
         } else {
-          this.silentPrint(lines[index]);
-          setTimeout(() => printNextLine(), this.config.typingSpeed);
+          const newLine = this.env == "node" ? "\n" : "";
+          this.printInstantly(
+            lines[index] + newLine,
+            () => setTimeout(() => printNextLine(), this.config.typingSpeed),
+            false
+          );
         }
         index ++;
       };
@@ -976,33 +965,35 @@
       const isAnimation = Array.isArray(text);
       const firstFrame = isAnimation ? text[0] : text;
       const animationFrames = isAnimation ? text : [text];
-      const animationId = Utils.uuid();
       
-      // Print the first frame
-      this.printTextLineByLine(firstFrame, () => {
-        if (!isAnimation) {
-          // Single image, not an animation
-          callback && callback();
-          this.animationState.isAnimating = false;
-          this.processOutputQueue();
-          return;
-        }
+      if (this.env === 'browser') {
+        const animationId = Utils.uuid();
         
-        // Animation setup
-        let currentFrame = 0;
-        let animationLines = firstFrame.split('\n');
-        const totalLines = animationLines.length;
-        
-        // Store animation state
-        this.animationFrames.set(animationId, {
-          frames: animationFrames,
-          currentFrame: 0,
-          totalLines: totalLines,
-          elementIds: []
-        });
-        
-        // In browser, we need to track which DOM elements belong to this animation
-        if (this.env === 'browser') {
+        // Print the first frame
+        this.printTextLineByLine(firstFrame, () => {
+          if (!isAnimation) {
+            // Single image, not an animation
+            callback && callback();
+            this.animationState.isAnimating = false;
+            this.processOutputQueue();
+            return;
+          }
+          
+          // Animation setup
+          let currentFrame = 0;
+          let animationLines = firstFrame.split('\n');
+          const totalLines = animationLines.length;
+          
+          // Store animation state
+          this.animationFrames.set(animationId, {
+            frames: animationFrames,
+            currentFrame: 0,
+            totalLines: totalLines,
+            elementIds: [],
+            callback: callback
+          });
+          
+          // Track which DOM elements belong to this animation
           const outputLines = this.outputElement.querySelectorAll('div');
           const startIndex = Math.max(0, outputLines.length - totalLines);
           
@@ -1010,31 +1001,34 @@
             outputLines[i].classList.add(`lore-animation-${animationId}`);
             this.animationFrames.get(animationId).elementIds.push(i);
           }
-        }
-        
-        // Start animation loop
-        const animate = () => {
-          currentFrame = (currentFrame + 1) % animationFrames.length;
           
-          if (this.env === 'browser') {
+          // Start animation loop
+          const animate = () => {
+            currentFrame = (currentFrame + 1) % animationFrames.length;
             this.updateBrowserAnimation(animationId, currentFrame);
-          } else {
-            this.updateNodeAnimation(animationId, currentFrame);
-          }
+            this.animationFrames.get(animationId).currentFrame = currentFrame;
+          };
           
-          this.animationFrames.get(animationId).currentFrame = currentFrame;
-        };
-        
-        // Start animation interval
-        const intervalId = setInterval(animate, 200); // 5 FPS by default
-        this.animationIntervals.set(animationId, intervalId);
-        
-        // Store callback to call when animation should stop
-        this.animationFrames.get(animationId).callback = callback;
-        
-        // Continue queue
-        this.processOutputQueue();
-      });
+          // Start animation interval
+          const intervalId = setInterval(animate, 200); // 5 FPS by default
+          this.animationIntervals.set(animationId, intervalId);
+          
+          // Store callback to call when animation should stop
+          this.animationFrames.get(animationId).callback = callback;
+          
+          // Continue queue
+          this.processOutputQueue();
+        });
+      } else {
+        this.printTextLineByLine(firstFrame, () => this.processOutputQueue());
+      }
+    }
+    
+    printImageInstantly(text, callback) {
+      const isAnimation = Array.isArray(text);
+      const firstFrame = isAnimation ? text[0] : text;
+      const newLine = this.env == "node" ? "\n" : "";
+      this.printInstantly(newLine + firstFrame + newLine, () => this.processOutputQueue());
     }
     
     updateBrowserAnimation(animationId, frameIndex) {
@@ -1069,33 +1063,6 @@
       }
     }
     
-    updateNodeAnimation(animationId, frameIndex) {
-      if (!this.animationFrames.has(animationId)) return;
-      
-      const animation = this.animationFrames.get(animationId);
-      const frame = animation.frames[frameIndex];
-      const frameLines = frame.split('\n');
-      
-      // Move cursor up to the start of the animation
-      process.stdout.write(`\x1B[${animation.totalLines}A`);
-      
-      // Print the new frame
-      for (let i = 0; i < frameLines.length; i++) {
-        // Clear the line and print new content
-        process.stdout.write(`\x1B[2K${frameLines[i]}\n`);
-      }
-      
-      // If the new frame has fewer lines, clear the remaining lines
-      for (let i = frameLines.length; i < animation.totalLines; i++) {
-        process.stdout.write(`\x1B[2K\n`);
-      }
-      
-      // Update the total lines if the new frame has more lines
-      if (frameLines.length > animation.totalLines) {
-        animation.totalLines = frameLines.length;
-      }
-    }
-    
     stopAnimation(animationId) {
       if (this.animationIntervals.has(animationId)) {
         clearInterval(this.animationIntervals.get(animationId));
@@ -1112,23 +1079,19 @@
         
         this.animationFrames.delete(animationId);
       }
-    
-      // Clear the animation from output in browser
-      if (this.env === "browser") {
-        const elements = this.outputElement.querySelectorAll(`.lore-animation-${animationId}`);
-        elements.forEach(el => el.remove());
-      }
     }
     
     skipAnimation() {
+      // Handle text animations
       if (this.animationState.currentAnimation && this.animationState.isAnimating) {
         clearInterval(this.animationState.currentAnimation);
         this.animationState.currentAnimation = null;
+        this.animationState.isAnimating = false;
     
         // Process all remaining animation items instantly
         while (this.outputQueue.length > 0) {
           const animationItem = this.outputQueue.shift();
-          const formattedText = this.parseFormatting(animationItem.text);
+          const formattedText = this.parseFormatting(typeof animationItem.text == "string" ? animationItem.text : animationItem.text[0]);
     
           if (this.env === 'browser') {
             const div = document.createElement('div');
@@ -1142,10 +1105,65 @@
             animationItem.callback();
           }
         }
-    
-        this.animationState.isAnimating = false;
       }
-    }
+    
+      // Handle image animations
+      if (this.animationIntervals.size > 0) {
+        // Stop all image animations
+        for (const [animationId, intervalId] of this.animationIntervals.entries()) {
+          clearInterval(intervalId);
+          
+          // Show the first frame of the animation
+          const animation = this.animationFrames.get(animationId);
+          if (animation) {
+            const firstFrame = animation.frames[0];
+            
+            if (this.env === 'browser') {
+              // Replace animation with first frame
+              const elements = this.outputElement.querySelectorAll(`.lore-animation-${animationId}`);
+              const frameLines = firstFrame.split('\n');
+              
+              for (let i = 0; i < Math.min(elements.length, frameLines.length); i++) {
+                elements[i].textContent = frameLines[i];
+              }
+              
+              // Remove any extra lines
+              for (let i = frameLines.length; i < elements.length; i++) {
+                elements[i].remove();
+              }
+            } else {
+              // In Node.js, we need to rewrite the animation area with the first frame
+              const frameLines = firstFrame.split('\n');
+              
+              // Move cursor up to the start of the animation
+              process.stdout.write(`\x1B[${animation.totalLines}A`);
+              
+              // Print the first frame
+              for (let i = 0; i < frameLines.length; i++) {
+                process.stdout.write(`\x1B[2K${frameLines[i]}\n`);
+              }
+              
+              // Clear any extra lines
+              for (let i = frameLines.length; i < animation.totalLines; i++) {
+                process.stdout.write(`\x1B[2K\n`);
+              }
+            }
+            
+            // Call the callback if it exists
+            if (animation.callback) {
+              animation.callback();
+            }
+          }
+        }
+        
+        // Clear all animation state
+        this.animationIntervals.clear();
+        this.animationFrames.clear();
+      }
+    
+      // Ensure animation state is reset
+      this.animationState.isAnimating = false;
+    }    
     
     updatePrompt(newPrompt) {
       if (this.env === "browser") {
