@@ -23,6 +23,14 @@
     "--lore-font-size": "16px",
     "--lore-border-color": "#333333"
   };
+  const DEFAULT_CONFIG = {
+    prompt: DEFAULT_PROMPT,
+    autosave: false,
+    typingSpeed: 30,
+    debug: false,
+    clearScreenOnNovelLoad: true,
+    disableTextAnimation: false
+  };
 
   // ANSI color codes for Node.js
   const ANSI_COLORS = {
@@ -154,13 +162,8 @@
       };
 
       this.config = {
-        prompt: options.prompt || DEFAULT_PROMPT,
-        autosave: options.autosave !== false,
-        saveSlots: options.saveSlots || 3,
-        typingSpeed: options.typingSpeed || 30,
-        debug: options.debug || false,
-        disableTextAnimation: options.disableTextAnimation || false,
-        animationLoopCount: options.animationLoopCount || 3
+        ...DEFAULT_CONFIG,
+        ...options
       };
 
       this.world = {
@@ -2230,6 +2233,10 @@
           this.state.currentRoom = novel.startRoom;
         } else {
           this.state.currentRoom = null;
+        }
+        
+        if (this.config.clearScreenOnNovelLoad) {
+          this.clearScreen();
         }
         
         this.startGame(this.state.currentRoom);
