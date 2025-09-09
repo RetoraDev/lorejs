@@ -172,7 +172,7 @@
       };
 
       this.plugins = new Map();
-      this.theme = Utils.deepClone(DEFAULT_THEME);
+      this.theme = { ...DEFAULT_THEME };
       this.historyIndex = -1;
       this.isRunning = false;
       this.outputBuffer = [];
@@ -246,8 +246,7 @@
 
       this.promptElement = document.createElement("span");
       this.promptElement.className = "lore-prompt";
-      this.promptElement.textContent = this.config.prompt;
-      this.promptElement.style.color = this.theme["--lore-prompt-color"];
+      this.promptElement.textContent = this.parseFormatting(this.config.prompt);
 
       this.inputElement = document.createElement("input");
       this.inputElement.className = "lore-input";
@@ -289,7 +288,7 @@
       this.rl = this.readline.createInterface({
         input: process.stdin,
         output: process.stdout,
-        prompt: this.config.prompt
+        prompt: this.parseFormatting(this.config.prompt)
       });
 
       this.setupNodeEvents();
@@ -563,8 +562,10 @@
       this.historyIndex = this.state.history.length;
     
       // Echo input
-      this.printLine(`${this.config.prompt}${input}`, true);
-    
+      if (this.env === 'browser') {
+        this.printLine(`${this.config.prompt}${input}`, true);
+      }
+      
       // Parse and execute command
       const [command, ...args] = input.trim().split(/\s+/);
       const normalizedCommand = command.toLowerCase();
@@ -963,10 +964,10 @@
     updatePrompt(newPrompt) {
       if (this.env === "browser") {
         this.config.prompt = newPrompt;
-        this.promptElement.textContent = newPrompt;
+        this.promptElement.innerHTML = this.parseFormatting(newPrompt);
       } else {
         this.config.prompt = newPrompt;
-        rl.setPrompt(newPrompt);
+        rl.setPrompt(this.parseFormatting(newPrompt));
         rl.prompt();
       }
     }
@@ -1397,7 +1398,7 @@
     // Save/load system
     saveGame(slot = "default", silent = false) {
       const saveData = {
-        state: Utils.deepClone(this.state),
+        state: { ...this.state },
         timestamp: Date.now(),
         slot: slot
       };
@@ -1675,7 +1676,7 @@
         theme = await this.prepareModule(theme);
         
         // Apply theme
-        this.theme = { ...this.theme, ...theme };
+        this.theme = { ...DEFAULT_THEME, ...theme };
 
         if (this.env === "browser") {
           // Update CSS variables
@@ -1692,14 +1693,14 @@
           this.promptElement.style.color = this.theme["--lore-prompt-color"];
           this.inputElement.style.color = this.theme["--lore-input-color"];
           
-          if (this.theme.prompt) {
-            this.updatePrompt(this.theme.prompt);
+          if (this.theme["--lore-prompt-content"]) {
+            this.updatePrompt(this.theme["--lore-prompt-content"]);
           }
         } else {
-          // TODO: Load theme for nodejs too
+          if (this.theme["--lore-prompt-content"]) {
+            this.updatePrompt(this.theme["--lore-prompt-content"]);
+          }
         }
-
-        this.printLine("Theme applied.");
         return true;
       } catch (error) {
         this.printLine(`Error loading theme: ${error.message}`);
