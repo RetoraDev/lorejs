@@ -35,7 +35,10 @@ module.exports = {
       id: "torch",
       name: "{{red}}Torch{{color_reset}}",
       takeable: true,
-      use: "engine.printLine('The {{red}}torch{{color_reset}} {{yellow}}flickers brightly{{color_reset}}, illuminating the area.'); return true;"
+      use: (args, engine) => {
+        engine.printLine('The {{red}}torch{{color_reset}} {{yellow}}flickers brightly{{color_reset}}, illuminating the area.');
+        return true; // The item use was successful
+      }
     },
     {
       id: "key",
