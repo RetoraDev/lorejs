@@ -1066,7 +1066,13 @@ class Game {
     }
 
     const nextRoomId = currentRoom.exits[direction];
-    const nextRoom = this.world.rooms.get(nextRoomId);
+    this.enterRoom(direction);
+    
+    return true;
+  }
+  
+  enterRoom(roomId) {
+    const nextRoom = this.world.rooms.get(roomId);
 
     if (!nextRoom) {
       this.printLine(`The path leads nowhere.`);
@@ -1087,11 +1093,10 @@ class Game {
       nextRoom.onEnter(this.state, this);
     }
 
-    this.look();
-    return true;
+    this.look(true);
   }
 
-  look() {
+  look(silent = false) {
     const room = this.world.rooms.get(this.state.currentRoom);
     if (!room) {
       this.printLine("You are in the void.");
@@ -1110,6 +1115,11 @@ class Game {
 
     this.printLine(room.description);
     this.printLine("");
+    
+    // Call onLook
+    if (!silent && room.onLook) {
+      room.onLook(this.state, this);
+    }
 
     // Display items in room
     if (room.items && room.items.length > 0) {
