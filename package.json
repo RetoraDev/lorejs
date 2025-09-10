@@ -1,0 +1,17 @@
+{
+  "name": "lorejs",
+  "version": "1.0.0",
+  "description": "A text adventure engine for Node.JS and Browsers",
+  "main": "lore.js",
+  "scripts": {
+    "test": "node index.js",
+    "build": "node build.js"
+  },
+  "keywords": [
+    "javascript",
+    "repl",
+    "game-engine"
+  ],
+  "author": "RetoraDev",
+  "license": "Apache-2.0"
+}

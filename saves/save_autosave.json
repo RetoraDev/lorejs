@@ -1,0 +1,14 @@
+{
+  "state": {
+    "currentRoom": null,
+    "inventory": [],
+    "flags": {},
+    "variables": {},
+    "history": [
+      "oleh"
+    ],
+    "gameTime": 0
+  },
+  "timestamp": 1757441594755,
+  "slot": "autosave"
+}

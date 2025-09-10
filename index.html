@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <title>LoreJS - A text adventure engine for Node.js and browser</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width user-scalable=no">
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script src="eruda.js"></script>
+  <body>
+    <script src="lore.js"></script>
+    <script>eruda.init()</script>
+    <div id="debug"></div>
+    <script>
+      const game = new LORE.Game();
+      game.loadNovel('./sample/sample_novel.js');
+    </script>
+  </body>
+</html>
