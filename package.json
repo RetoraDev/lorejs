@@ -4,7 +4,8 @@
   "description": "A text adventure engine for Node.JS and Browsers",
   "main": "lore.js",
   "scripts": {
-    "test": "node index.js"
+    "test": "node index.js",
+    "build": "node build.js"
   },
   "keywords": [
     "javascript",

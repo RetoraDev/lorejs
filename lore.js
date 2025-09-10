@@ -290,39 +290,39 @@
     }
     // Event setup
     setupBrowserEvents() {
-      this.inputElement.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          if (!this.animationState.isAnimating) {
-            this.processInput(this.inputElement.value);
-            this.inputElement.value = '';
+        this.inputElement.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            if (!this.animationState.isAnimating) {
+              this.processInput(this.inputElement.value);
+              this.inputElement.value = '';
+              e.preventDefault();
+            } else {
+              this.skipAnimation();
+              e.preventDefault();
+            }
+          } else if (e.key === 'ArrowUp') {
+            this.navigateHistory(-1);
             e.preventDefault();
-          } else {
+          } else if (e.key === 'ArrowDown') {
+            this.navigateHistory(1);
+            e.preventDefault();
+          } else if (e.key === 'Tab') {
+            this.autoComplete();
+            e.preventDefault();
+          } else if (e.key === 'Escape' && this.animationState.isAnimating) {
             this.skipAnimation();
             e.preventDefault();
           }
-        } else if (e.key === 'ArrowUp') {
-          this.navigateHistory(-1);
-          e.preventDefault();
-        } else if (e.key === 'ArrowDown') {
-          this.navigateHistory(1);
-          e.preventDefault();
-        } else if (e.key === 'Tab') {
-          this.autoComplete();
-          e.preventDefault();
-        } else if (e.key === 'Escape' && this.animationState.isAnimating) {
-          this.skipAnimation();
-          e.preventDefault();
-        }
-      });
-      // Handle window resize
-      window.addEventListener('resize', Utils.debounce(() => {
-        this.outputElement.scrollTop = this.outputElement.scrollHeight;
-      }, 250));
-      // Focus input on terminal click
-      this.terminalElement.addEventListener('click', () => {
-        this.inputElement.focus();
-      });
-    }
+        });
+        // Handle window resize
+        window.addEventListener('resize', Utils.debounce(() => {
+          this.outputElement.scrollTop = this.outputElement.scrollHeight;
+        }, 250));
+        // Focus input on terminal click
+        this.terminalElement.addEventListener('click', () => {
+          this.inputElement.focus();
+        });
+      }
     setupNodeEvents() {
       this.rl.on('line', (input) => {
         if (this.animationState.isAnimating) {
@@ -749,6 +749,7 @@
             div.innerHTML = outputText;
             index++;
           }
+          this.outputElement.scrollTop = this.outputElement.scrollHeight;
         }, this.config.typingSpeed);
       } else {
         this.animationState.currentAnimation = setInterval(() => {
@@ -1034,8 +1035,13 @@
         this.animationIntervals.clear();
         this.animationFrames.clear();
       }
+      // Scroll to bottom
+      if (this.env === "browser") {
+        this.outputElement.scrollTop = this.outputElement.scrollHeight;
+      }
       // Ensure animation state is reset
       this.animationState.isAnimating = false;
+      this.queueIsRunning = false;
     }
     updatePrompt(newPrompt) {
       if (this.env === "browser") {
@@ -1043,8 +1049,8 @@
         this.promptElement.innerHTML = this.parseFormatting(newPrompt);
       } else {
         this.config.prompt = newPrompt;
-        rl.setPrompt(this.parseFormatting(newPrompt));
-        rl.prompt();
+        this.rl.setPrompt(this.parseFormatting(newPrompt));
+        this.rl.prompt();
       }
     }
     // Game state management

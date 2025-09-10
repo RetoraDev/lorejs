@@ -1,5 +1,5 @@
 module.exports = {
-  "--lore-bg-color": "#4d4d4d",
+  "--lore-bg-color": "#2d2d2d",
   "--lore-text-color": "#f0f0f0",
   "--lore-prompt-color": "#00ff00",
   "--lore-input-color": "#f0f0f0",
