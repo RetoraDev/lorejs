@@ -394,7 +394,7 @@ class Game {
     if (!input.trim()) return;
 
     // Interrupt any ongoing animation
-    if (this.animationState.currentAnimation) {
+    if (this.animationState.currentAnimation || this.queueIsRunning) {
       this.skipAnimation();
       return;
     }
@@ -592,6 +592,7 @@ class Game {
         if (index >= text.length) {
           clearInterval(this.animationState.currentAnimation);
           this.animationState.currentAnimation = null;
+          this.animationState.isAnimating = false;
           if (callback) callback();
           this.processOutputQueue();
           return;
@@ -673,6 +674,7 @@ class Game {
         if (index >= text.length) {
           clearInterval(this.animationState.currentAnimation);
           this.animationState.currentAnimation = null;
+          this.animationState.isAnimating = false;
           if (callback) callback();
           this.processOutputQueue();
           return;
@@ -846,7 +848,7 @@ class Game {
         // Start animation loop
         const animate = () => {
           currentFrame = (currentFrame + 1) % animationFrames.length;
-          this.updateBrowserAnimation(animationId, currentFrame);
+          this.updateAnimation(animationId, currentFrame);
           this.animationFrames.get(animationId).currentFrame = currentFrame;
         };
 
@@ -872,7 +874,7 @@ class Game {
     this.printInstantly(newLine + firstFrame + newLine, () => this.processOutputQueue());
   }
 
-  updateBrowserAnimation(animationId, frameIndex) {
+  updateAnimation(animationId, frameIndex) {
     if (!this.animationFrames.has(animationId)) return;
 
     const animation = this.animationFrames.get(animationId);

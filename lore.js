@@ -511,7 +511,7 @@
     processInput(input) {
       if (!input.trim()) return;
       // Interrupt any ongoing animation
-      if (this.animationState.currentAnimation) {
+      if (this.animationState.currentAnimation || this.queueIsRunning) {
         this.skipAnimation();
         return;
       }
@@ -681,6 +681,7 @@
           if (index >= text.length) {
             clearInterval(this.animationState.currentAnimation);
             this.animationState.currentAnimation = null;
+            this.animationState.isAnimating = false;
             if (callback) callback();
             this.processOutputQueue();
             return;
@@ -756,6 +757,7 @@
           if (index >= text.length) {
             clearInterval(this.animationState.currentAnimation);
             this.animationState.currentAnimation = null;
+            this.animationState.isAnimating = false;
             if (callback) callback();
             this.processOutputQueue();
             return;
@@ -908,7 +910,7 @@
           // Start animation loop
           const animate = () => {
             currentFrame = (currentFrame + 1) % animationFrames.length;
-            this.updateBrowserAnimation(animationId, currentFrame);
+            this.updateAnimation(animationId, currentFrame);
             this.animationFrames.get(animationId).currentFrame = currentFrame;
           };
           // Start animation interval
@@ -929,7 +931,7 @@
       const newLine = this.env == "node" ? "\n" : "";
       this.printInstantly(newLine + firstFrame + newLine, () => this.processOutputQueue());
     }
-    updateBrowserAnimation(animationId, frameIndex) {
+    updateAnimation(animationId, frameIndex) {
       if (!this.animationFrames.has(animationId)) return;
       const animation = this.animationFrames.get(animationId);
       const frame = animation.frames[frameIndex];
