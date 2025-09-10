@@ -1,5 +1,18 @@
-// L.O.R.E. - Line-Oriented Recursive Engine
-// A text adventure engine for Node.js and browser
+/**
+* Copyright 2025 RetoraDev
+*
+*   Licensed under the Apache License, Version 2.0 (the "License");
+*   you may not use this file except in compliance with the License.
+*   You may obtain a copy of the License at
+*
+*       http://www.apache.org/licenses/LICENSE-2.0
+*
+*   Unless required by applicable law or agreed to in writing, software
+*   distributed under the License is distributed on an "AS IS" BASIS,
+*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*   See the License for the specific language governing permissions and
+*   limitations under the License.
+*/
 
 (function (global, factory) {
   if (typeof module === "object" && typeof module.exports === "object") {
@@ -544,22 +557,11 @@
     // Command processing
     processInput(input) {
       if (!input.trim()) return;
-    
+      
       // Interrupt any ongoing animation
       if (this.animationState.currentAnimation) {
-        clearInterval(this.animationState.currentAnimation);
-        this.animationState.currentAnimation = null;
-        this.animationState.animationQueue = [];
-        this.animationState.isAnimating = false;
-    
-        // Clear the current animation line
-        if (this.env === 'browser') {
-          const lines = this.outputElement.querySelectorAll('div');
-          if (lines.length > 0) {
-            const lastLine = lines[lines.length - 1];
-            lastLine.remove();
-          }
-        }
+        this.skipAnimation();
+        return;
       }
     
       // Add to history
@@ -590,7 +592,7 @@
       }
     
       // Autosave if enabled
-      if (this.config.autosave) {
+      if (this.fig.autosave) {
         this.saveGame('autosave', true);
       }
     }
