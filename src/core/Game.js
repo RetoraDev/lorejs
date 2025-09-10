@@ -414,8 +414,8 @@ class Game {
 
     if (this.world.commands.has(normalizedCommand)) {
       try {
-        const commandFn = this.world.commands.get(normalizedCommand);
-        commandFn.call(this, args, this);
+        const command = this.world.commands.get(normalizedCommand);
+        command?.fn?.call(this, args, this);
       } catch (error) {
         this.printLine(`Error executing command: ${error.message}`);
         if (this.config.debug) {
@@ -431,7 +431,7 @@ class Game {
       this.saveGame('autosave', true);
     }
   }
-
+  
   navigateHistory(direction) {
     if (this.state.history.length === 0) return;
 
@@ -1719,316 +1719,387 @@ class Game {
   }
 
   // Command registration
-  registerCommand(name, commandFn) {
-    this.world.commands.set(name.toLowerCase(), commandFn);
+  printHelp() {
+    this.printLine("{{bold}}Available commands:{{font_reset}}");
+    
+    const commands = Array.from(this.world.commands)
+      .map(command => command[1])
+      .sort((a, b) => a.weight - b.weight)
+      .filter(command => command.help && command.weight != -1);
+      
+    commands.forEach(command => {
+      const name = command.display || command.name;
+      const aliases = command.aliases && command.aliases.length ? ", " + command.aliases.join(', ') : "";
+      const help = command.help;
+      this.printLine(`  {{green}}${name}{{color_reset}}{{green}}${aliases}{{color_reset}} - ${help}`);
+    });
   }
-
+  
+  registerCommand(command) {
+    if (!command || !command.name) return;
+    this.world.commands.set(command.name.toLowerCase(), {
+      name: "foo",
+      aliases: [],
+      fn: () => {},
+      help: "",
+      weight: null,
+      ...command
+    });
+  }
+  
   registerKeybinding(key, action) {
     this.world.keybindings.set(key, action);
   }
 
   registerDefaultCommands() {
     // Help command
-    this.registerCommand("help", (args, engine) => {
-      engine.printLine("{{bold}}Available commands:{{font_reset}}");
-      engine.printLine("  {{green}}look{{color_reset}}, {{green}}l{{color_reset}} - Look around the current room");
-      engine.printLine("  {{green}}go [direction]{{color_reset}} - Move in a direction (north, south, east, west, etc.)");
-      engine.printLine("  {{green}}take [item]{{color_reset}} - Take an item");
-      engine.printLine("  {{green}}drop [item]{{color_reset}} - Drop an item");
-      engine.printLine("  {{green}}inventory{{color_reset}}, {{green}}i{{color_reset}} - Show your inventory");
-      engine.printLine("  {{green}}use [item]{{color_reset}} - Use an item");
-      engine.printLine("  {{green}}use [item] on [target]{{color_reset}} - Use an item on a target");
-      engine.printLine("  {{green}}talk [character]{{color_reset}} - Talk to a character");
-      engine.printLine("  {{green}}save [slot]{{color_reset}} - Save the game");
-      engine.printLine("  {{green}}load [slot]{{color_reset}} - Load a saved game");
-      engine.printLine("  {{green}}restart{{color_reset}} - Restart the game");
-      engine.printLine("  {{green}}quit{{color_reset}} - Quit the game");
-      engine.printLine("  {{green}}help{{color_reset}} - Show this help");
+    this.registerCommand({
+      name: "help",
+      aliases: ["h", "?"],
+      fn: () => this.printHelp(),
+      help: "Show this help",
+      weight: 1000
     });
 
     // Look command
-    this.registerCommand("look", (args, engine) => {
-      engine.look();
-    });
-    this.registerCommand("l", (args, engine) => {
-      engine.look();
+    this.registerCommand({
+      name: "look",
+      aliases: ["l", "see"],
+      fn: () => this.look(),
+      help: "Look around the current room",
+      weight: 1
     });
 
     // Movement commands
-    this.registerCommand("go", (args, engine) => {
-      if (args.length === 0) {
-        engine.printLine("Go where?");
-        return;
-      }
-      engine.move(args[0]);
-    });
+    this.registerCommand({
+      name: "go",
+      display: "go [dir]",
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("Go where?");
+          return;
+        }
+        engine.move(args[0]);
+      },
+      help: "Move in a direction",
+      weight: 2
+    })
 
     // Direction shortcuts
     const directions = ["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest", "up", "down", "in", "out"];
-    directions.forEach(dir => {
-      this.registerCommand(dir, (args, engine) => {
-        engine.move(dir);
+    const aliases = ["n", "s", "e", "w", "ne", "nw", "se", "sw", "u", "d", "i", "o"];
+    for (let i = 0; i < directions.length; i++) {
+      const dir = directions[i];
+      const alias = aliases[i];
+      this.registerCommand({
+        name: dir,
+        aliases: [alias],
+        fn: engine => engine.move(dir),
+        help: null,
+        weight: -1
       });
-
-      // Shortcuts
-      if (dir === "north") this.registerCommand("n", (args, engine) => engine.move("north"));
-      if (dir === "south") this.registerCommand("s", (args, engine) => engine.move("south"));
-      if (dir === "east") this.registerCommand("e", (args, engine) => engine.move("east"));
-      if (dir === "west") this.registerCommand("w", (args, engine) => engine.move("west"));
-      if (dir === "northeast") this.registerCommand("ne", (args, engine) => engine.move("northeast"));
-      if (dir === "northwest") this.registerCommand("nw", (args, engine) => engine.move("northwest"));
-      if (dir === "southeast") this.registerCommand("se", (args, engine) => engine.move("southeast"));
-      if (dir === "southwest") this.registerCommand("sw", (args, engine) => engine.move("southwest"));
-      if (dir === "up") this.registerCommand("u", (args, engine) => engine.move("up"));
-      if (dir === "down") this.registerCommand("d", (args, engine) => engine.move("down"));
-    });
-
+    }
+    
     // Take command
-    this.registerCommand("take", (args, engine) => {
-      if (args.length === 0) {
-        engine.printLine("Take what?");
-        return;
-      }
-
-      const room = engine.world.rooms.get(engine.state.currentRoom);
-      if (!room || !room.items) {
-        engine.printLine("There's nothing to take here.");
-        return;
-      }
-
-      // Find item by name
-      const itemName = args.join(" ").toLowerCase();
-      let itemId = null;
-
-      for (const id of room.items) {
-        const item = engine.world.items.get(id);
-        if (item && item.name.toLowerCase().includes(itemName)) {
-          itemId = id;
-          break;
+    this.registerCommand({
+      name: "take",
+      display: "take [item]",
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("Take what?");
+          return;
         }
-      }
-
-      if (itemId) {
-        engine.takeItem(itemId);
-      } else {
-        engine.printLine("You don't see that here.");
-      }
-    });
-
-    // Drop command
-    this.registerCommand("drop", (args, engine) => {
-      if (args.length === 0) {
-        engine.printLine("Drop what?");
-        return;
-      }
-
-      // Find item by name in inventory
-      const itemName = args.join(" ").toLowerCase();
-      let itemId = null;
-
-      for (const id of engine.state.inventory) {
-        const item = engine.world.items.get(id);
-        if (item && item.name.toLowerCase().includes(itemName)) {
-          itemId = id;
-          break;
-        }
-      }
-
-      if (itemId) {
-        engine.dropItem(itemId);
-      } else {
-        engine.printLine("You don't have that item.");
-      }
-    });
-
-    // Inventory command
-    this.registerCommand("inventory", (args, engine) => {
-      if (engine.state.inventory.length === 0) {
-        engine.printLine("You are carrying nothing.");
-        return;
-      }
-
-      engine.printLine("{{bold}}You are carrying:{{font_reset}}");
-      for (const itemId of engine.state.inventory) {
-        const item = engine.world.items.get(itemId);
-        if (item) {
-          engine.printLine(`- ${item.name}`);
-        }
-      }
-    });
-    this.registerCommand("i", (args, engine) => {
-      engine.world.commands.get("inventory")(args, engine);
-    });
-
-    // Use command
-    this.registerCommand("use", (args, engine) => {
-      if (args.length === 0) {
-        engine.printLine("Use what?");
-        return;
-      }
-
-      // Check for "on" keyword
-      const onIndex = args.findIndex(arg => arg === "on");
-      let targetName = null;
-      let itemName;
-
-      if (onIndex !== -1) {
-        itemName = args.slice(0, onIndex).join(" ").toLowerCase();
-        targetName = args
-          .slice(onIndex + 1)
-          .join(" ")
-          .toLowerCase();
-      } else {
-        itemName = args.join(" ").toLowerCase();
-      }
-
-      // Find item in inventory
-      let itemId = null;
-      for (const id of engine.state.inventory) {
-        const item = engine.world.items.get(id);
-        if (item && item.name.toLowerCase().includes(itemName)) {
-          itemId = id;
-          break;
-        }
-      }
-
-      if (!itemId) {
-        engine.printLine("You don't have that item.");
-        return;
-      }
-
-      if (targetName) {
-        // Find target in room or inventory
+  
         const room = engine.world.rooms.get(engine.state.currentRoom);
-        let targetId = null;
-
-        // Check room items
-        if (room && room.items) {
-          for (const id of room.items) {
-            const item = engine.world.items.get(id);
-            if (item && item.name.toLowerCase().includes(targetName)) {
-              targetId = id;
-              break;
-            }
+        if (!room || !room.items) {
+          engine.printLine("There's nothing to take here.");
+          return;
+        }
+  
+        // Find item by name
+        const itemName = args.join(" ").toLowerCase();
+        let itemId = null;
+  
+        for (const id of room.items) {
+          const item = engine.world.items.get(id);
+          if (item && item.name.toLowerCase().includes(itemName)) {
+            itemId = id;
+            break;
           }
         }
-
-        // Check room characters
-        if (!targetId && room && room.characters) {
-          for (const id of room.characters) {
-            const character = engine.world.characters.get(id);
-            if (character && character.name.toLowerCase().includes(targetName)) {
-              targetId = id;
-              break;
-            }
-          }
-        }
-
-        // Check inventory
-        if (!targetId) {
-          for (const id of engine.state.inventory) {
-            const item = engine.world.items.get(id);
-            if (item && item.name.toLowerCase().includes(targetName)) {
-              targetId = id;
-              break;
-            }
-          }
-        }
-
-        if (targetId) {
-          engine.useItem(itemId, targetId);
+  
+        if (itemId) {
+          engine.takeItem(itemId);
         } else {
           engine.printLine("You don't see that here.");
         }
-      } else {
-        engine.useItem(itemId);
-      }
+      },
+      help: "Take an item",
+      weight: 3
+    });
+
+    // Drop command
+    this.registerCommand({
+      name: "drop",
+      display: "drop [item]",
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("Drop what?");
+          return;
+        }
+  
+        // Find item by name in inventory
+        const itemName = args.join(" ").toLowerCase();
+        let itemId = null;
+  
+        for (const id of engine.state.inventory) {
+          const item = engine.world.items.get(id);
+          if (item && item.name.toLowerCase().includes(itemName)) {
+            itemId = id;
+            break;
+          }
+        }
+  
+        if (itemId) {
+          engine.dropItem(itemId);
+        } else {
+          engine.printLine("You don't have that item.");
+        }
+      },
+      help: "Drop an item",
+      weight: 4
+    });
+
+    // Inventory command
+    this.registerCommand({
+      name: "inventory",
+      aliases: ["i"],
+      fn: (args, engine) => {
+        if (engine.state.inventory.length === 0) {
+          engine.printLine("You are carrying nothing.");
+          return;
+        }
+  
+        engine.printLine("{{bold}}You are carrying:{{font_reset}}");
+        for (const itemId of engine.state.inventory) {
+          const item = engine.world.items.get(itemId);
+          if (item) {
+            engine.printLine(`- ${item.name}`);
+          }
+        }
+      },
+      help: "Show your inventory",
+      weight: 5
+    });
+
+    // Use command
+    this.registerCommand({
+      name: "use",
+      display: "use [item]",
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("Use what?");
+          return;
+        }
+  
+        // Check for "on" keyword
+        const onIndex = args.findIndex(arg => arg === "on");
+        let targetName = null;
+        let itemName;
+  
+        if (onIndex !== -1) {
+          itemName = args.slice(0, onIndex).join(" ").toLowerCase();
+          targetName = args
+            .slice(onIndex + 1)
+            .join(" ")
+            .toLowerCase();
+        } else {
+          itemName = args.join(" ").toLowerCase();
+        }
+  
+        // Find item in inventory
+        let itemId = null;
+        for (const id of engine.state.inventory) {
+          const item = engine.world.items.get(id);
+          if (item && item.name.toLowerCase().includes(itemName)) {
+            itemId = id;
+            break;
+          }
+        }
+  
+        if (!itemId) {
+          engine.printLine("You don't have that item.");
+          return;
+        }
+  
+        if (targetName) {
+          // Find target in room or inventory
+          const room = engine.world.rooms.get(engine.state.currentRoom);
+          let targetId = null;
+  
+          // Check room items
+          if (room && room.items) {
+            for (const id of room.items) {
+              const item = engine.world.items.get(id);
+              if (item && item.name.toLowerCase().includes(targetName)) {
+                targetId = id;
+                break;
+              }
+            }
+          }
+  
+          // Check room characters
+          if (!targetId && room && room.characters) {
+            for (const id of room.characters) {
+              const character = engine.world.characters.get(id);
+              if (character && character.name.toLowerCase().includes(targetName)) {
+                targetId = id;
+                break;
+              }
+            }
+          }
+  
+          // Check inventory
+          if (!targetId) {
+            for (const id of engine.state.inventory) {
+              const item = engine.world.items.get(id);
+              if (item && item.name.toLowerCase().includes(targetName)) {
+                targetId = id;
+                break;
+              }
+            }
+          }
+  
+          if (targetId) {
+            engine.useItem(itemId, targetId);
+          } else {
+            engine.printLine("You don't see that here.");
+          }
+        } else {
+          engine.useItem(itemId);
+        }
+      },
+      help: "Use an item",
+      weight: 6
     });
 
     // Say
-    this.registerCommand("say", (args, engine) => {
-      if (args.length === 0) {
-        engine.printLine("You don't say");
-        return;
-      }
-
-      const line = args.join(" ");
-
-      engine.printLine(`You say:{{n}} - ${line}`);
+    this.registerCommand({
+      name: "say",
+      display: "say [...]",
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("You don't say");
+          return;
+        }
+  
+        const line = args.join(" ");
+  
+        engine.printLine(`You say:{{n}} - ${line}`);
+      },
+      weight: 7,
+      help: "Say something"
     });
 
     // Talk command
-    this.registerCommand("talk", (args, engine) => {
-      if (args.length === 0) {
-        engine.printLine("Talk to whom?");
-        return;
-      }
-
-      const room = engine.world.rooms.get(engine.state.currentRoom);
-      if (!room || !room.characters) {
-        engine.printLine("There's no one here to talk to.");
-        return;
-      }
-
-      // Find character by name
-      const charName = args.join(" ").toLowerCase();
-      let characterId = null;
-
-      for (const id of room.characters) {
-        const character = engine.world.characters.get(id);
-        if (character && character.name.toLowerCase().includes(charName)) {
-          characterId = id;
-          break;
+    this.registerCommand({
+      name: "talk",
+      display: "talk [character]",
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          engine.printLine("Talk to whom?");
+          return;
         }
-      }
-
-      if (characterId) {
-        const character = engine.world.characters.get(characterId);
-        if (character.talk) {
-          character.talk(engine.state, engine);
+  
+        const room = engine.world.rooms.get(engine.state.currentRoom);
+        if (!room || !room.characters) {
+          engine.printLine("There's no one here to talk to.");
+          return;
+        }
+  
+        // Find character by name
+        const charName = args.join(" ").toLowerCase();
+        let characterId = null;
+  
+        for (const id of room.characters) {
+          const character = engine.world.characters.get(id);
+          if (character && character.name.toLowerCase().includes(charName)) {
+            characterId = id;
+            break;
+          }
+        }
+  
+        if (characterId) {
+          const character = engine.world.characters.get(characterId);
+          if (character.talk) {
+            character.talk(engine.state, engine);
+          } else {
+            engine.printLine(`${character.name} has nothing to say to you.`);
+          }
         } else {
-          engine.printLine(`${character.name} has nothing to say to you.`);
+          engine.printLine("You don't see that person here.");
         }
-      } else {
-        engine.printLine("You don't see that person here.");
-      }
+      },
+      help: "Talk to someone",
+      weight: 8
     });
 
     // Save command
-    this.registerCommand("save", (args, engine) => {
-      const slot = args.length > 0 ? args[0] : "default";
-      engine.saveGame(slot);
+    this.registerCommand({
+      name: "save", 
+      display: "save [slot]",
+      fn: (args, engine) => {
+        const slot = args.length > 0 ? args[0] : "default";
+        engine.saveGame(slot);
+      },
+      help: "Save the game",
+      weight: 9
     });
 
     // Load command
-    this.registerCommand("load", (args, engine) => {
-      const slot = args.length > 0 ? args[0] : "default";
-      engine.loadGame(slot);
+    this.registerCommand({
+      name: "load",
+      display: "load [slot]",
+      fn: (args, engine) => {
+        const slot = args.length > 0 ? args[0] : "default";
+        engine.loadGame(slot);
+      },
+      help: "Load a saved game",
+      weight: 10
     });
 
     // Restart command
-    this.registerCommand("restart", (args, engine) => {
-      engine.restartGame();
+    this.registerCommand({
+      name: "restart",
+      fn: () => this.restartGame(),
+      help: "Restart the game",
+      weight: 11
     });
 
     // Quit command
-    this.registerCommand("quit", (args, engine) => {
-      engine.printLine("{{green}}Goodbye!{{color_reset}}");
-      if (engine.env === "node") {
-        engine.rl.close();
-      } else {
-        // In browser, we can't really quit, so just clear and reset
-        engine.stopAllAnimations();
-        engine.state = {
-          currentRoom: null,
-          inventory: [],
-          flags: {},
-          variables: {},
-          history: [],
-          gameTime: 0
-        };
-        engine.clearScreen();
-      }
+    this.registerCommand({
+      name: "quit",
+      aliases: ["exit"],
+      fn: (args, engine) => {
+        engine.printLine("{{green}}Goodbye!{{color_reset}}");
+        if (engine.env === "node") {
+          engine.rl.close();
+        } else {
+          // In browser, we can't really quit, so just clear and reset
+          engine.stopAllAnimations();
+          engine.state = {
+            currentRoom: null,
+            inventory: [],
+            flags: {},
+            variables: {},
+            history: [],
+            gameTime: 0
+          };
+          engine.clearScreen();
+        }
+      },
+      help: "Quit the game",
+      weight: 999
     });
   }
 
