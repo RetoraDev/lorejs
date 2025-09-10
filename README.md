@@ -84,9 +84,6 @@ game.loadNovel({
     }
   ]
 });
-
-// Start the game
-game.start();
 ```
 
 ## Creating a Novel

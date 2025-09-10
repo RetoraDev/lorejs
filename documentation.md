@@ -1,109 +1,97 @@
-LORE Text Adventure Engine API Reference
+# LORE Text Adventure Engine API Reference
 
-Overview
+## Overview
 
 LORE is a cross-platform text adventure game engine that works in both browser and Node.js environments. It provides a complete framework for creating interactive fiction with rich text formatting, animations, inventory systems, and plugin support.
 
-Core Classes
+## Core Classes
 
-Game
+### Game
 
 The main engine class that manages the game state, world, and rendering.
 
-Constructor
+#### Constructor
 
 ```javascript
 new Game(options = {})
 ```
 
-Parameters:
+**Parameters:**
+- **options** (Object): Configuration options that override DEFAULT_CONFIG
 
-· options (Object): Configuration options that override DEFAULT_CONFIG
+**Properties:**
+- **state**: Current game state including inventory, flags, and variables
+- **config**: Engine configuration
+- **world**: Game world containing rooms, items, characters, etc.
+- **plugins**: Map of loaded plugins
+- **theme**: Current theme settings
 
-Properties:
+#### Methods
 
-· state: Current game state including inventory, flags, and variables
-· config: Engine configuration
-· world: Game world containing rooms, items, characters, etc.
-· plugins: Map of loaded plugins
-· theme: Current theme settings
+**Output Methods**
+- **print**(text, instant = false, img = false): Adds text to output queue
+- **printLine**(text = '', instant = false): Prints a line of text
+- **printImg**(text, instant = false): Prints image/ASCII art
+- **clearScreen**(): Clears the terminal/output
+- **updateLastLine**(text): Replaces the last line of output
+- **updatePrompt**(newPrompt): Changes the input prompt
 
-Methods
+**Game State Management**
+- **startGame**(startRoomId): Begins the game
+- **restartGame**(): Resets the game to initial state
+- **saveGame**(slot = "default", silent = false): Saves game state
+- **loadGame**(slot = "default"): Loads saved game
+- **deleteSave**(slot = "default"): Deletes saved game
+- **listSaves**(): Shows available save files
 
-Output Methods
+**World Navigation**
+- **move**(direction): Moves player to adjacent room
+- **look**(): Describes current room and contents
 
-· print(text, instant = false, img = false): Adds text to output queue
-· printLine(text = '', instant = false): Prints a line of text
-· printImg(text, instant = false): Prints image/ASCII art
-· clearScreen(): Clears the terminal/output
-· updateLastLine(text): Replaces the last line of output
-· updatePrompt(newPrompt): Changes the input prompt
+**Inventory Management**
+- **takeItem**(itemId): Takes item from current room
+- **dropItem**(itemId): Drops item into current room
+- **useItem**(itemId, targetId = null): Uses item on target
 
-Game State Management
+**Dialog System**
+- **async confirm**(prompt): Presents yes/no confirmation dialog
+- **async selectFromList**(prompt, options): Presents selection dialog
 
-· startGame(startRoomId): Begins the game
-· restartGame(): Resets the game to initial state
-· saveGame(slot = "default", silent = false): Saves game state
-· loadGame(slot = "default"): Loads saved game
-· deleteSave(slot = "default"): Deletes saved game
-· listSaves(): Shows available save files
+**World Building**
+- **addRoom**(room): Adds room to world
+- **addItem**(item): Adds item to world
+- **addCharacter**(character): Adds character to world
+- **addEvent**(event): Adds event to world
 
-World Navigation
+**Plugin System**
+- **async loadPlugin**(plugin): Loads a plugin
+- **unloadPlugin**(pluginId): Unloads a plugin
 
-· move(direction): Moves player to adjacent room
-· look(): Describes current room and contents
+**Theme System**
+- **async loadTheme**(theme): Applies a new theme
 
-Inventory Management
+**Novel Loading**
+- **async loadNovel**(novel): Loads a complete game/story
 
-· takeItem(itemId): Takes item from current room
-· dropItem(itemId): Drops item into current room
-· useItem(itemId, targetId = null): Uses item on target
-
-Dialog System
-
-· async confirm(prompt): Presyes/no confirmation dialog
-· async selectFromList(prompt, options): Presents selection dialog
-
-World Building
-
-· addRoom(room): Adds room to world
-· addItem(item): Adds item to world
-· addCharacter(character): Adds character to world
-· addEvent(event): Adds event to world
-
-Plugin System
-
-· async loadPlugin(plugin): Loads a plugin
-· unloadPlugin(pluginId): Unloads a plugin
-
-Theme System
-
-· async loadTheme(theme): Applies a new theme
-
-Novel Loading
-
-· async loadNovel(novel): Loads a complete game/story
-
-Utils
+## Utils
 
 Utility functions used throughout the engine.
 
-Methods
+**Methods**
+- **isBrowser**: Returns true if running in browser
+- **isNode**: Returns true if running in Node.js
+- **deepClone**(obj): Creates a deep clone of an object
+- **uuid**(): Generates a UUID
+- **debounce**(func, wait): Creates a debounced function
+- **colorNameToHex**(color): Converts color name to hex
+- **isValidColor**(color): Validates color format
+- **isURL**(value): Checks if value is a URL
+- **deserializeFunction**(func): Converts string to function
+- **async loadModule**(url): Loads external module
 
-· isBrowser: Returns true if running in browser
-· isNode: Returns true if running in Node.js
-· deepClone(obj): Creates a deep clone of an object
-· uuid(): Generates a UUID
-· debounce(func, wait): Creates a debounced function
-· colorNameToHex(color): Converts color name to hex
-· isValidColor(color): Validates color format
-· isURL(value): Checks if value is a URL
-· deserializeFunction(func): Converts string to function
-· async loadModule(url): Loads external module
+## Constants
 
-Constants
-
-ANSI_COLORS
+### ANSI_COLORS
 
 ANSI color codes for terminal output:
 
@@ -121,7 +109,7 @@ ANSI color codes for terminal output:
 }
 ```
 
-ANSI_STYLES
+### ANSI_STYLES
 
 ANSI style codes for terminal output:
 
@@ -143,19 +131,19 @@ ANSI style codes for terminal output:
 }
 ```
 
-VERSION
+### VERSION
 
-Engine version string: "1.0.0"
+Engine version string: `"1.0.0"`
 
-STORAGE_KEY
+### STORAGE_KEY
 
-Local storage key for save data: "lore_save_data"
+Local storage key for save data: `"lore_save_data"`
 
-DEFAULT_PROMPT
+### DEFAULT_PROMPT
 
-Default input prompt: "> "
+Default input prompt: `"> "`
 
-DEFAULT_THEME
+### DEFAULT_THEME
 
 Default theme settings:
 
@@ -171,7 +159,7 @@ Default theme settings:
 }
 ```
 
-DEFAULT_CONFIG
+### DEFAULT_CONFIG
 
 Default engine configuration:
 
@@ -186,32 +174,29 @@ Default engine configuration:
 }
 ```
 
-Text Formatting
+## Text Formatting
 
 LORE supports rich text formatting using double-brace syntax:
 
-Color Formatting
+### Color Formatting
+- `{{colorName}}` - Apply color (red, green, blue, etc.)
+- `{{#hexCode}}` - Apply hex color
+- `{{color_reset}}` - Reset color
 
-· {{colorName}} - Apply color (red, green, blue, etc.)
-· {{#hexCode}} - Apply hex color
-· {{color_reset}} - Reset color
+### Style Formatting
+- `{{bold}}` or `{{b}}` - Bold text
+- `{{italic}}` or `{{i}}` - Italic text
+- `{{underline}}` or `{{u}}` - Underlined text
+- `{{font_reset}}` or `{{fr}}` - Reset all formatting
 
-Style Formatting
+### Special Formatting
+- `{{newline}}` or `{{n}}` - Line break
+- `{{tabulator}}` or `{{tab}}` or `{{t}}` - Tab character
+- `{{instant}}...{{/instant}}` - Text that displays instantly
 
-· {{bold}} or {{b}} - Bold text
-· {{italic}} or {{i}} - Italic text
-· {{underline}} or {{u}} - Underlined text
-· {{font_reset}} or {{fr}} - Reset all formatting
+## Data Structures
 
-Special Formatting
-
-· {{newline}} or {{n}} - Line break
-· {{tabulator}} or {{tab}} or {{t}} - Tab character
-· {{instant}}...{{/instant}} - Text that displays instantly
-
-Data Structures
-
-Room Object
+### Room Object
 
 ```javascript
 {
@@ -228,7 +213,7 @@ Room Object
 }
 ```
 
-Item Object
+### Item Object
 
 ```javascript
 {
@@ -241,7 +226,7 @@ Item Object
 }
 ```
 
-Character Object
+### Character Object
 
 ```javascript
 {
@@ -252,7 +237,7 @@ Character Object
 }
 ```
 
-Command Object
+### Command Object
 
 ```javascript
 {
@@ -265,65 +250,61 @@ Command Object
 }
 ```
 
-Default Commands
+## Default Commands
 
 The engine registers these default commands:
 
-· help, h, ? - Show help
-· look, l, see - Look around current room
-· go [direction] - Move in direction
-· Direction shortcuts: north/n, south/s, east/e, west/w, etc.
-· take [item] - Take item from room
-· drop [item] - Drop item from inventory
-· inventory, i - Show inventory
-· use [item] - Use item
-· say [...] - Say something
-· talk [character] - Talk to character
-· save [slot] - Save game
-· load [slot] - Load game
-· restart - Restart game
-· quit, exit - Quit game
+- **help, h, ?** - Show help
+- **look, l, see** - Look around current room
+- **go [direction]** - Move in direction
+- **Direction shortcuts**: north/n, south/s, east/e, west/w, etc.
+- **take [item]** - Take item from room
+- **drop [item]** - Drop item from inventory
+- **inventory, i** - Show inventory
+- **use [item]** - Use item
+- **say [...]** - Say something
+- **talk [character]** - Talk to character
+- **save [slot]** - Save game
+- **load [slot]** - Load game
+- **restart** - Restart game
+- **quit, exit** - Quit game
 
-Plugin System
+## Plugin System
 
 Plugins can extend the engine with:
+- Commands
+- Rooms
+- Items
+- Characters
+- Events
+- Keybindings
 
-· Commands
-· Rooms
-· Items
-· Characters
-· Events
-· Keybindings
-
-Theme System
+## Theme System
 
 Themes can customize:
+- Colors (background, text, prompt, input)
+- Font family and size
+- Prompt content
+- Border colors
 
-· Colors (background, text, prompt, input)
-· Font family and size
-· Prompt content
-· Border colors
-
-Browser vs Node.js
+## Browser vs Node.js
 
 The engine automatically detects its environment and uses appropriate implementations:
 
-Browser:
+**Browser:**
+- Renders to DOM elements
+- Uses CSS for styling
+- Local storage for saves
 
-· Renders to DOM elements
-· Uses CSS for styling
-· Local storage for saves
+**Node.js:**
+- Uses readline for input/output
+- ANSI codes for formatting
+- File system for saves
 
-Node.js:
-
-· Uses readline for input/output
-· ANSI codes for formatting
-· File system for saves
-
-Error Handling
+## Error Handling
 
 The engine includes comprehensive error handling with optional debug mode that can be enabled in configuration.
 
-License
+## License
 
 Apache License 2.0 - See [LICENSE](./LICENSE) file for full license text.

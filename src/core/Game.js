@@ -1026,6 +1026,10 @@ class Game {
   }
 
   // Game state management
+  start(startRoomId) {
+    this.startGame(this.startRoomId || this.state.currentRoom);
+  }
+  
   startGame(startRoomId) {
     this.isRunning = true;
     this.state.currentRoom = startRoomId;
