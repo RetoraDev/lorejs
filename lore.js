@@ -1056,6 +1056,9 @@
       }
     }
     // Game state management
+    start(startRoomId) {
+      this.startGame(this.startRoomId || this.state.currentRoom);
+    }
     startGame(startRoomId) {
       this.isRunning = true;
       this.state.currentRoom = startRoomId;
@@ -1090,7 +1093,11 @@
         return false;
       }
       const nextRoomId = currentRoom.exits[direction];
-      const nextRoom = this.world.rooms.get(nextRoomId);
+      this.enterRoom(direction);
+      return true;
+    }
+    enterRoom(roomId) {
+      const nextRoom = this.world.rooms.get(roomId);
       if (!nextRoom) {
         this.printLine(`The path leads nowhere.`);
         return false;
@@ -1106,10 +1113,9 @@
       if (nextRoom.onEnter) {
         nextRoom.onEnter(this.state, this);
       }
-      this.look();
-      return true;
+      this.look(true);
     }
-    look() {
+    look(silent = false) {
       const room = this.world.rooms.get(this.state.currentRoom);
       if (!room) {
         this.printLine("You are in the void.");
@@ -1125,6 +1131,10 @@
       }
       this.printLine(room.description);
       this.printLine("");
+      // Call onLook
+      if (!silent && room.onLook) {
+        room.onLook(this.state, this);
+      }
       // Display items in room
       if (room.items && room.items.length > 0) {
         const itemList = room.items
@@ -1680,23 +1690,6 @@
     }
     registerDefaultCommands() {
       // Help command
-      /*
-      this.registerCommand("help", (args, engine) => {
-        engine.printLine("{{bold}}Available commands:{{font_reset}}");
-        engine.printLine("  {{green}}look{{color_reset}}, {{green}}l{{color_reset}} - Look around the current room");
-        engine.printLine("  {{green}}go [direction]{{color_reset}} - Move in a direction (north, south, east, west, etc.)");
-        engine.printLine("  {{green}}take [item]{{color_reset}} - Take an item");
-        engine.printLine("  {{green}}drop [item]{{color_reset}} - Drop an item");
-        engine.printLine("  {{green}}inventory{{color_reset}}, {{green}}i{{color_reset}} - Show your inventory");
-        engine.printLine("  {{green}}use [item]{{color_reset}} - Use an item");
-        engine.printLine("  {{green}}use [item] on [target]{{color_reset}} - Use an item on a target");
-        engine.printLine("  {{green}}talk [character]{{color_reset}} - Talk to a character");
-        engine.printLine("  {{green}}save [slot]{{color_reset}} - Save the game");
-        engine.printLine("  {{green}}load [slot]{{color_reset}} - Load a saved game");
-        engine.printLine("  {{green}}restart{{color_reset}} - Restart the game");
-        engine.printLine("  {{green}}quit{{color_reset}} - Quit the game");
-        engine.printLine("  {{green}}help{{color_reset}} - Show this help");
-      });*/
       this.registerCommand({
         name: "help",
         aliases: ["h", "?"],

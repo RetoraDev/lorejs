@@ -17,6 +17,11 @@
 const fs = require('fs');
 const path = require('path');
 
+// Colors
+const red = '\x1b[31m';
+const green = '\x1b[32m';
+const reset = '\x1b[0m';
+
 // Configuration
 const SRC_DIR = 'src';
 const ENTRY_FILE = path.join(SRC_DIR, 'main.js');
@@ -131,24 +136,6 @@ function extractWrapper(code) {
   return code.substring(wrapperStart, wrapperEnd + 3);
 }
 
-// Basic minification
-function minifyCode(code) {
-  return LICENSE_HEADER + '\n\n' + code
-    // Remove single-line comments
-    .replace(/\/\/[^\n]*\n/g, '')
-    // Remove multi-line comments but keep license
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    // Remove extra whitespace
-    .replace(/\s+/g, ' ')
-    // Remove whitespace around operators
-    .replace(/\s*([=+\-*\/%&|^~<>!?:;,{}()[\]])\s*/g, '$1')
-    // Remove trailing semicolons before closing braces
-    .replace(/;\s*}/g, '}')
-    // Remove empty lines
-    .replace(/^\s*[\r\n]/gm, '')
-    .trim();
-}
-
 // Util to convert bytes to a human readable size expression
 function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -160,10 +147,6 @@ function formatBytes(bytes) {
 // Build the output
 function build() {
   console.log('Building lore.js...');
-  
-  const red = '\x1b[31m';
-  const green = '\x1b[32m';
-  const reset = '\x1b[0m';
   
   try {
     // Reset processed files
@@ -207,17 +190,20 @@ function build() {
     outputCode += '\n  '; // Ensure proper spacing before wrapper end
     outputCode += wrapperEnd;
     
-    // Clean up final output
+    // Clean up final output by removing excessive new lines
     outputCode = outputCode.replace(/\n{3,}/g, '\n\n');
     
     // Write the regular version
     fs.writeFileSync(OUTPUT_FILE, outputCode);
-    console.log(green + `✓ ${OUTPUT_FILE} created successfully (${formatBytes(outputCode.length)})` + reset);
+    console.log(green + `✓ ${OUTPUT_FILE} built successfully (${formatBytes(outputCode.length)})` + reset);
     
-    // Create minified version
-    const minifiedCode = minifyCode(outputCode);
-    fs.writeFileSync(MINIFIED_FILE, minifiedCode);
-    console.log(green + `✓ ${MINIFIED_FILE} created successfully (${formatBytes(minifiedCode.length)})` + reset);
+    // TODO: Create minified version without installing any node module
+    const minifiedCode = null;
+    
+    if (minifiedCode) {
+      fs.writeFileSync(MINIFIED_FILE, minifiedCode);
+      console.log(green + `✓ ${MINIFIED_FILE} built successfully (${formatBytes(minifiedCode.length)})` + reset);
+    }
     
     console.log('Build completed successfully!');
     
@@ -232,4 +218,4 @@ if (require.main === module) {
   build();
 }
 
-module.exports = { build, minifyCode, processFile, formatBytes };
+module.exports = { build, processFile, formatBytes };
