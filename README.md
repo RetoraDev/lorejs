@@ -57,6 +57,11 @@ Simply add lore.js to your HTML:
 </script>
 ```
 
+You can also import it from [jsDelivr](https://www.jsdelivr.com/package/npm/lorejs)
+```html
+<script src="https://cdn.jsdelivr.net/gh/RetoraDev/lorejs@main/lore.js"></script>
+```
+
 See `index.html` for a full browser implementation
 
 ## Quick Start

@@ -12,6 +12,10 @@
     "repl",
     "game-engine"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RetoraDev/lorejs.git"
+  },
   "author": "RetoraDev",
   "license": "Apache-2.0"
 }
