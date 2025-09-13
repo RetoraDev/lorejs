@@ -59,7 +59,7 @@ Simply add lore.js to your HTML:
 
 You can also import it from [jsDelivr](https://www.jsdelivr.com/package/npm/lorejs)
 ```html
-<script src="https://cdn.jsdelivr.net/gh/RetoraDev/lorejs@main/lore.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/RetoraDev/lorejs@main/lore.min.js"></script>
 ```
 
 See `index.html` for a full browser implementation
@@ -134,10 +134,10 @@ You can load novels from objects or files:
 // From an object
 game.loadNovel(novelObject);
 
-// From a local file (Node.js only)
+// From a local file (Node.js and Browser)
 game.loadNovel('./sample/sample_novel.js');
 
-// From a URL (Browser only)
+// From a remote URL (Browser only)
 game.loadNovel('https://example.com/novel.js');
 ```
 
