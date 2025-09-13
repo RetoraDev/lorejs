@@ -2,6 +2,9 @@ NOTICE
 
 This project contains components from the following third-party packages:
 
+All third-party libraries are located in the lib/ folder, except for Lore.JS
+(this project's own code).
+
 ===========================================================================
 eruda.js
 ===========================================================================
@@ -13,6 +16,23 @@ Licensed under the MIT License:
 https://opensource.org/licenses/MIT
 
 The eruda.js library is included for development and debugging purposes.
+
+===========================================================================
+terser.js (Webpack Bundle)
+===========================================================================
+terser.js is a bundled version of Terser (https://github.com/terser/terser) 
+and its dependencies, packaged using webpack into a single file.
+
+Includes:
+- Terser: https://github.com/terser/terser
+  Copyright (c) 2012-2018 Mihai Bazon <mihai.bazon@gmail.com>
+  Licensed under the BSD-2-Clause License
+
+- All Terser dependencies (source-map, commander, etc.) as required for
+  complete functionality
+
+The bundled terser.js file provides minification capabilities while maintaining
+all original functionality in a single, self-contained file.
 
 ===========================================================================
 Lore.JS

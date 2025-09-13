@@ -16,6 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const terser = require('./lib/terser.js');
 
 // Colors
 const red = '\x1b[31m';
@@ -136,6 +137,19 @@ function extractWrapper(code) {
   return code.substring(wrapperStart, wrapperEnd + 3);
 }
 
+// Util to minify code with terser
+async function minifyCode(code) {
+  const minified = await terser.minify(code, {
+    mangle: {
+      toplevel: true,
+      properties: true,
+      keep_fnames: false,
+      keep_classnames: false
+    }
+  });
+  return LICENSE_HEADER + '\n\n' + minified.code;
+}
+
 // Util to convert bytes to a human readable size expression
 function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -145,7 +159,7 @@ function formatBytes(bytes) {
 }
 
 // Build the output
-function build() {
+async function build() {
   console.log('Building lore.js...');
   
   try {
@@ -197,8 +211,8 @@ function build() {
     fs.writeFileSync(OUTPUT_FILE, outputCode);
     console.log(green + `✓ ${OUTPUT_FILE} built successfully (${formatBytes(outputCode.length)})` + reset);
     
-    // TODO: Create minified version without installing any node module
-    const minifiedCode = null;
+    // Create minified version 
+    const minifiedCode = await minifyCode(outputCode);
     
     if (minifiedCode) {
       fs.writeFileSync(MINIFIED_FILE, minifiedCode);

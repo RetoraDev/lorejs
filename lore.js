@@ -1126,7 +1126,7 @@
       this.printLine("");
       // Display room image if available
       if (room.image) {
-        this.displayImage(room.image, room.imageOptions);
+        this.printImg(room.image);
         this.printLine("");
       }
       this.printLine(room.description);
