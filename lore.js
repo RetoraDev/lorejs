@@ -657,7 +657,7 @@
       });
     }
     printLine(text = '', instant = false) {
-      return this.print(text + (this.env === 'browser' ? '<br>' : '\n'), instant);
+      return this.print(text + (this.env === 'browser' ? '{{instant}}<br>{{/instant}}' : '\n'), instant);
     }
     printImg(text, instant = false) {
       return this.print(text, instant, true);
