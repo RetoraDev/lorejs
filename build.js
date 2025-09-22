@@ -141,8 +141,8 @@ function extractWrapper(code) {
 async function minifyCode(code) {
   const minified = await terser.minify(code, {
     mangle: {
-      toplevel: true,
-      properties: true,
+      toplevel: false,
+      properties: false,
       keep_fnames: false,
       keep_classnames: false
     }
