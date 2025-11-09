@@ -179,7 +179,22 @@
         characters: new Map(),
         events: new Map(),
         commands: new Map(),
+        aliases: new Map(),
         keybindings: new Map()
+      };
+      this.tutorials = {
+        help: {
+          command: "help",
+          purpose: "see available commands"
+        },
+        look: {
+          command: "look",
+          purpose: "look around"
+        },
+        movement: {
+          command: "go",
+          purpose: "move in a direction"
+        }
       };
       this.plugins = new Map();
       this.theme = { ...DEFAULT_THEME };
@@ -415,6 +430,8 @@
           }
         } else if (tag === 'newline' || tag === 'n') {
           result += '<br>';
+        } else if (tag === 'double_newline' || tag === 'dn') {
+          result += '<br><br>';
         } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
           result += '&nbsp;&nbsp;&nbsp;&nbsp;';
         } else if (tag === 'instant') {
@@ -491,6 +508,8 @@
           }
         } else if (tag === 'newline' || tag === 'n') {
           result += '\n';
+        } else if (tag === 'double_newline' || tag === 'dn') {
+          result += '\n\n';
         } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
           result += '\t';
         } else if (tag === 'instant') {
@@ -524,8 +543,17 @@
       }
       // Parse and execute command
       const [command, ...args] = input.trim().split(/\s+/);
-      const normalizedCommand = command.toLowerCase();
-      if (this.world.commands.has(normalizedCommand)) {
+      let normalizedCommand = command.toLowerCase();
+      let commandAvailable = true;
+      // Look for command aliases otherwise mark command not available
+      if (!this.world.commands.has(normalizedCommand)) {
+        if (this.world.aliases.has(normalizedCommand)) {
+          normalizedCommand = this.world.aliases.get(normalizedCommand);
+        } else {
+          commandAvailable = false;
+        }
+      }
+      if (commandAvailable) {
         try {
           const command = this.world.commands.get(normalizedCommand);
           command?.fn?.call(this, args, this);
@@ -1093,7 +1121,7 @@
         return false;
       }
       const nextRoomId = currentRoom.exits[direction];
-      this.enterRoom(direction);
+      this.enterRoom(nextRoomId);
       return true;
     }
     enterRoom(roomId) {
@@ -1107,7 +1135,7 @@
         this.printLine(nextRoom.blockedMessage || `You can't go that way right now.`);
         return false;
       }
-      this.state.currentRoom = nextRoomId;
+      this.state.currentRoom = nextRoom.id;
       this.state.gameTime++;
       // Call onEnter callback if defined
       if (nextRoom.onEnter) {
@@ -1122,15 +1150,25 @@
         return;
       }
       // Display room name and description
-      this.printLine(room.name);
-      this.printLine("");
+      if (room.name && room.name.length) {
+        this.printLine(room.name);
+        this.printLine("");
+      }
       // Display room image if available
       if (room.image) {
         this.printImg(room.image);
         this.printLine("");
       }
-      this.printLine(room.description);
-      this.printLine("");
+      if (room.description && room.description.length) {
+        this.printLine(room.description);
+        this.printLine("");
+      }
+      if (room.tutorial) {
+        this.printTutorial(room.tutorial);
+        if (!room.keepTutorial) {
+          room.tutorial = false;
+        }
+      }
       // Call onLook
       if (!silent && room.onLook) {
         room.onLook(this.state, this);
@@ -1155,11 +1193,22 @@
           .join(", ");
         this.printLine(`You see: ${charList}`);
       }
-      // Display exits
+    }
+    printRoomExits(room) {
+      if (!room) return false;
       if (room.exits) {
-        const exitList = Object.keys(room.exits).join(", ");
-        this.printLine(`Exits: ${exitList}`);
+        let exitList = "";
+        Object.keys(room.exits).forEach(exit => exitList += ` - ${exit}{{n}}`);
+        this.printLine(`Where would you like to go?\n${exitList}`);
+      } else {
+        this.printLine("You don't see how to exit");
       }
+      return true;
+    }
+    printTutorial(key) {
+      const tutorial = this.tutorials[key];
+      if (!tutorial) return;
+      this.printLine(`Type {{bold}}${tutorial.command}{{font_reset}} to ${tutorial.purpose}.`);
     }
     stopAnimation(animationId) {
       if (this.animationIntervals.has(animationId)) {
@@ -1515,8 +1564,8 @@
           this.plugins.set(plugin.id, plugin);
           // Apply plugin components
           if (plugin.commands) {
-            for (const [name, command] of Object.entries(plugin.commands)) {
-              this.registerCommand(name, command);
+            for (const command of plugin.commands) {
+              this.registerCommand(command);
             }
           }
           if (plugin.rooms) {
@@ -1543,6 +1592,9 @@
             for (const [key, binding] of Object.entries(plugin.keybindings)) {
               this.registerKeybinding(key, binding);
             }
+          }
+          if (plugin.init) {
+            plugin.init(this);
           }
           this.printLine(`Plugin loaded: ${plugin.name || plugin.id}`);
           return true;
@@ -1684,6 +1736,11 @@
         weight: null,
         ...command
       });
+      if (command.aliases) {
+        command.aliases.forEach(alias => {
+          this.world.aliases.set(alias, command.name.toLowerCase());
+        })
+      }
     }
     registerKeybinding(key, action) {
       this.world.keybindings.set(key, action);
@@ -1711,7 +1768,12 @@
         display: "go [dir]",
         fn: (args, engine) => {
           if (args.length === 0) {
-            engine.printLine("Go where?");
+            const currentRoom = engine.world.rooms.get(engine.state.currentRoom);
+            if (!currentRoom || !currentRoom.exits || !JSON.stringify(currentRoom.exits) == "{}") {
+              engine.printLine("Go where?");
+            } else {
+              engine.printRoomExits(currentRoom);
+            }
             return;
           }
           engine.move(args[0]);
@@ -1728,7 +1790,7 @@
         this.registerCommand({
           name: dir,
           aliases: [alias],
-          fn: engine => engine.move(dir),
+          fn: (args, engine) => engine.move(dir),
           help: null,
           weight: -1
         });
