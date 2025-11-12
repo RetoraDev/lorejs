@@ -1130,7 +1130,7 @@
         this.printLine(`The path leads nowhere.`);
         return false;
       }
-      // Check if there's a condition for entering this room
+      // Check if room is locked
       if (nextRoom.condition && !nextRoom.condition(this.state)) {
         this.printLine(nextRoom.blockedMessage || `You can't go that way right now.`);
         return false;
@@ -1142,6 +1142,7 @@
         nextRoom.onEnter(this.state, this);
       }
       this.look(true);
+      return true;
     }
     look(silent = false) {
       const room = this.world.rooms.get(this.state.currentRoom);
@@ -1228,6 +1229,29 @@
       for (const id of this.animationIntervals.keys()) {
         this.stopAnimation(id);
       }
+    }
+    // Room locking system
+    lockRoom(roomId, condition, blockedMessage = "The way is blocked.") {
+      const room = this.world.rooms.get(roomId);
+      if (room) {
+        room.condition = condition;
+        room.blockedMessage = blockedMessage;
+        return true;
+      }
+      return false;
+    }
+    unlockRoom(roomId) {
+      const room = this.world.rooms.get(roomId);
+      if (room) {
+        room.condition = null;
+        room.blockedMessage = null;
+        return true;
+      }
+      return false;
+    }
+    isRoomLocked(roomId) {
+      const room = this.world.rooms.get(roomId);
+      return room && room.condition && !room.condition(this.state);
     }
     // Inventory management
     takeItem(itemId) {
