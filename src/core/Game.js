@@ -1265,29 +1265,25 @@ class Game {
     return room && room.condition && !room.condition(this.state);
   }
 
-  // Inventory management
+  // Item management and interaction
   takeItem(itemId) {
     const room = this.world.rooms.get(this.state.currentRoom);
     if (!room || !room.items || !room.items.includes(itemId)) {
       this.printLine("You don't see that here.");
       return false;
     }
-
     const item = this.world.items.get(itemId);
     if (!item) {
       this.printLine("You can't take that.");
       return false;
     }
-
     if (!item.takeable) {
       this.printLine(`You can't take the ${item.name}.`);
       return false;
     }
-
     // Remove from room, add to inventory
     room.items = room.items.filter(id => id !== itemId);
     this.state.inventory.push(itemId);
-
     this.printLine(`You take the ${item.name}.`);
     return true;
   }
@@ -1382,6 +1378,78 @@ class Game {
 
     this.printLine(`Using the ${item.name} on the ${target.name} doesn't seem to do anything.`);
     return false;
+  }
+  
+  lookAtItem(itemName) {
+    const room = this.world.rooms.get(this.state.currentRoom);
+    if (!room || !room.items) {
+      this.printLine("You don't see that here.");
+      return false;
+    }
+    
+    // Find item by name or alias
+    let item = null;
+    for (const itemId of room.items) {
+      const currentItem = this.world.items.get(itemId);
+      if (currentItem && (
+        currentItem.name.toLowerCase().includes(itemName) ||
+        (currentItem.aliases && currentItem.aliases.some(alias => 
+          alias.toLowerCase().includes(itemName))
+        )
+      )) {
+        item = currentItem;
+        break;
+      }
+    }
+    
+    if (!item) {
+      this.printLine("You don't see that here.");
+      return false;
+    }
+    
+    if (item.look) {
+      item.look(this.state, this);
+    } else if (item.description) {
+      this.printLine(item.description);
+    } else {
+      this.printLine(`It's ${item.name}.`);
+    }
+    return true;
+  }
+  
+  useUntakeableItem(itemName) {
+    const room = this.world.rooms.get(this.state.currentRoom);
+    if (!room || !room.items) {
+      this.printLine("You don't see that here.");
+      return false;
+    }
+    
+    // Find item by name or alias
+    let item = null;
+    for (const itemId of room.items) {
+      const currentItem = this.world.items.get(itemId);
+      if (currentItem && (
+        currentItem.name.toLowerCase().includes(itemName) ||
+        (currentItem.aliases && currentItem.aliases.some(alias => 
+          alias.toLowerCase().includes(itemName))
+        )
+      )) {
+        item = currentItem;
+        break;
+      }
+    }
+    
+    if (!item) {
+      this.printLine("You don't see that here.");
+      return false;
+    }
+    
+    if (item.use) {
+      return item.use(this.state, this);
+    } else {
+      this.printLine(`You're not sure how to use ${item.name}.`);
+      return false;
+    }
   }
 
   // Dialog functions
@@ -1875,9 +1943,19 @@ class Game {
     // Look command
     this.registerCommand({
       name: "look",
-      aliases: ["l", "see"],
-      fn: () => this.look(),
-      help: "Look around the current room",
+      aliases: ["l", "see", "examine", "inspect"],
+      fn: (args, engine) => {
+        if (args.length === 0) {
+          // Default look around behavior
+          engine.look();
+          return;
+        }
+        
+        // Look at specific item
+        const target = args.join(" ").toLowerCase();
+        engine.lookAtItem(target);
+      },
+      help: "Look around or examine a specific item",
       weight: 1
     });
 
@@ -2043,89 +2121,35 @@ class Game {
           engine.printLine("Use what?");
           return;
         }
-  
-        // Check for "on" keyword
-        const onIndex = args.findIndex(arg => arg === "on");
-        let targetName = null;
-        let itemName;
-  
-        if (onIndex !== -1) {
-          itemName = args.slice(0, onIndex).join(" ").toLowerCase();
-          targetName = args
-            .slice(onIndex + 1)
-            .join(" ")
-            .toLowerCase();
-        } else {
-          itemName = args.join(" ").toLowerCase();
-        }
-  
-        // Find item in inventory
+        
+        const itemName = args.join(" ").toLowerCase();
+        
+        // First check inventory
         let itemId = null;
         for (const id of engine.state.inventory) {
           const item = engine.world.items.get(id);
-          if (item && item.name.toLowerCase().includes(itemName)) {
+          if (item && (
+            item.name.toLowerCase().includes(itemName) ||
+            (item.aliases && item.aliases.some(alias => alias.toLowerCase().includes(itemName)))
+          )) {
             itemId = id;
             break;
           }
         }
-  
-        if (!itemId) {
-          engine.printLine("You don't have that item.");
-          return;
-        }
-  
-        if (targetName) {
-          // Find target in room or inventory
-          const room = engine.world.rooms.get(engine.state.currentRoom);
-          let targetId = null;
-  
-          // Check room items
-          if (room && room.items) {
-            for (const id of room.items) {
-              const item = engine.world.items.get(id);
-              if (item && item.name.toLowerCase().includes(targetName)) {
-                targetId = id;
-                break;
-              }
-            }
-          }
-  
-          // Check room characters
-          if (!targetId && room && room.characters) {
-            for (const id of room.characters) {
-              const character = engine.world.characters.get(id);
-              if (character && character.name.toLowerCase().includes(targetName)) {
-                targetId = id;
-                break;
-              }
-            }
-          }
-  
-          // Check inventory
-          if (!targetId) {
-            for (const id of engine.state.inventory) {
-              const item = engine.world.items.get(id);
-              if (item && item.name.toLowerCase().includes(targetName)) {
-                targetId = id;
-                break;
-              }
-            }
-          }
-  
-          if (targetId) {
-            engine.useItem(itemId, targetId);
-          } else {
-            engine.printLine("You don't see that here.");
-          }
-        } else {
+        
+        if (itemId) {
+          // Use item from inventory
           engine.useItem(itemId);
+        } else {
+          // Try to use untakeable item in the room
+          engine.useUntakeableItem(itemName);
         }
       },
-      help: "Use an item",
+      help: "Use an item from inventory or in the environment",
       weight: 6
     });
 
-    // Say
+    // Say command
     this.registerCommand({
       name: "say",
       display: "say [...]",
