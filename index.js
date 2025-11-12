@@ -4,4 +4,4 @@ const LORE = require("./lore.min.js");
 const game = new LORE.Game();
 
 // Start the game
-game.loadNovel("./sample/sample_novel.js");
+game.loadNovel("./sample/sample_dating_novel.js");

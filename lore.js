@@ -1825,7 +1825,19 @@
         display: "take [item]",
         fn: (args, engine) => {
           if (args.length === 0) {
-            engine.printLine("Take what?");
+            const room = engine.world.rooms.get(engine.state.currentRoom);
+            if (!room || !room.items || room.items.length === 0) {
+              engine.printLine("Take what? There's nothing here to take.");
+              return;
+            }
+            engine.printLine("What would you like to take?");
+            const itemList = room.items
+              .map(id => {
+                const item = engine.world.items.get(id);
+                return item ? `- ${item.name}${item.aliases ? ` (also: ${item.aliases.join(', ')})` : ''}` : "unknown item";
+              })
+              .join("\n");
+            engine.printLine(itemList);
             return;
           }
           const room = engine.world.rooms.get(engine.state.currentRoom);
@@ -1833,14 +1845,27 @@
             engine.printLine("There's nothing to take here.");
             return;
           }
-          // Find item by name
+          // Find item by name or alias
           const itemName = args.join(" ").toLowerCase();
           let itemId = null;
           for (const id of room.items) {
             const item = engine.world.items.get(id);
-            if (item && item.name.toLowerCase().includes(itemName)) {
-              itemId = id;
-              break;
+            if (item) {
+              // Check main name
+              if (item.name.toLowerCase().includes(itemName)) {
+                itemId = id;
+                break;
+              }
+              // Check aliases
+              if (item.aliases) {
+                for (const alias of item.aliases) {
+                  if (alias.toLowerCase().includes(itemName)) {
+                    itemId = id;
+                    break;
+                  }
+                }
+              }
+              if (itemId) break;
             }
           }
           if (itemId) {
@@ -1992,6 +2017,16 @@
           }
           const line = args.join(" ");
           engine.printLine(`You say:{{n}} - ${line}`);
+          // Trigger character reactions
+          const room = engine.world.rooms.get(engine.state.currentRoom);
+          if (room && room.characters) {
+            room.characters.forEach(charId => {
+              const character = engine.world.characters.get(charId);
+              if (character && character.onSay) {
+                character.onSay(line, engine.state, engine);
+              }
+            });
+          }
         },
         weight: 7,
         help: "Say something"
@@ -1999,10 +2034,30 @@
       // Talk command
       this.registerCommand({
         name: "talk",
-        display: "talk [character]",
+        display: "talk [character] about [topic]",
         fn: (args, engine) => {
           if (args.length === 0) {
-            engine.printLine("Talk to whom?");
+            const room = engine.world.rooms.get(engine.state.currentRoom);
+            if (!room || !room.characters || room.characters.length === 0) {
+              engine.printLine("Talk to whom? There's no one here.");
+              return;
+            }
+            engine.printLine("Who would you like to talk to?");
+            const charList = room.characters
+              .map(id => {
+                const character = engine.world.characters.get(id);
+                if (!character) return "unknown character";
+                let display = `- ${character.name}`;
+                if (character.aliases) {
+                  display += ` (also: ${character.aliases.join(', ')})`;
+                }
+                if (character.genre && room.characters.length === 1) {
+                  display += ` [or use "talk ${character.genre}"]`;
+                }
+                return display;
+              })
+              .join("\n");
+            engine.printLine(charList);
             return;
           }
           const room = engine.world.rooms.get(engine.state.currentRoom);
@@ -2010,28 +2065,85 @@
             engine.printLine("There's no one here to talk to.");
             return;
           }
-          // Find character by name
-          const charName = args.join(" ").toLowerCase();
+          // Parse command for "about" keyword
+          const aboutIndex = args.findIndex(arg => arg === "about");
+          let topic = null;
+          let charIdentifier;
+          if (aboutIndex !== -1) {
+            charIdentifier = args.slice(0, aboutIndex).join(" ").toLowerCase();
+            topic = args.slice(aboutIndex + 1).join(" ").toLowerCase();
+          } else {
+            charIdentifier = args.join(" ").toLowerCase();
+          }
+          // Find character by name, alias, or genre pronoun
           let characterId = null;
+          let character = null;
           for (const id of room.characters) {
-            const character = engine.world.characters.get(id);
-            if (character && character.name.toLowerCase().includes(charName)) {
+            const char = engine.world.characters.get(id);
+            if (!char) continue;
+            // Check main name
+            if (char.name.toLowerCase().includes(charIdentifier)) {
               characterId = id;
+              character = char;
               break;
             }
+            // Check aliases
+            if (char.aliases) {
+              for (const alias of char.aliases) {
+                if (alias.toLowerCase().includes(charIdentifier)) {
+                  characterId = id;
+                  character = char;
+                  break;
+                }
+              }
+              if (characterId) break;
+            }
+            // Check genre pronoun (only if single character in room)
+            if (char.genre && room.characters.length === 1) {
+              if ((char.genre === 'female' && (charIdentifier === 'her' || charIdentifier === 'she')) ||
+                  (char.genre === 'male' && (charIdentifier === 'him' || charIdentifier === 'he'))) {
+                characterId = id;
+                character = char;
+                break;
+              }
+            }
           }
-          if (characterId) {
-            const character = engine.world.characters.get(characterId);
+          if (!characterId) {
+            engine.printLine("You don't see that person here.");
+            return;
+          }
+          // Handle topic-based conversation
+          if (topic && character.topics) {
+            let foundTopic = false;
+            for (const [topicKey, topicData] of Object.entries(character.topics)) {
+              if (topicKey.toLowerCase().includes(topic) || 
+                  (topicData.aliases && topicData.aliases.some(alias => alias.toLowerCase().includes(topic)))) {
+                if (topicData.condition && !topicData.condition(engine.state)) {
+                  engine.printLine(topicData.blockedMessage || `${character.name} doesn't want to talk about that right now.`);
+                } else {
+                  topicData.dialog(engine.state, engine);
+                  // Update flags if specified
+                  if (topicData.setFlag) {
+                    engine.state.flags[topicData.setFlag] = true;
+                  }
+                }
+                foundTopic = true;
+                break;
+              }
+            }
+            if (!foundTopic) {
+              engine.printLine(`${character.name} doesn't seem to know anything about "${topic}".`);
+            }
+          } else {
+            // Standard talk interaction
             if (character.talk) {
               character.talk(engine.state, engine);
             } else {
-              engine.printLine(`${character.name} has nothing to say to you.`);
+              engine.printLine(`${character.name} has nothing to say to you right now.`);
             }
-          } else {
-            engine.printLine("You don't see that person here.");
           }
         },
-        help: "Talk to someone",
+        help: "Talk to someone or ask about a specific topic",
         weight: 8
       });
       // Save command
