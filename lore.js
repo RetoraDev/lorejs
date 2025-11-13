@@ -129,6 +129,15 @@
         return func;
       }
     },
+    arraysEqual(a, b) {
+      if (a === b) return true;
+      if (a == null || b == null) return false;
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; ++i) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    },
     async loadModule(url) {
       try {
         const response = await fetch(url);
@@ -182,20 +191,6 @@
         aliases: new Map(),
         keybindings: new Map()
       };
-      this.tutorials = {
-        help: {
-          command: "help",
-          purpose: "see available commands"
-        },
-        look: {
-          command: "look",
-          purpose: "look around"
-        },
-        movement: {
-          command: "go",
-          purpose: "move in a direction"
-        }
-      };
       this.plugins = new Map();
       this.theme = { ...DEFAULT_THEME };
       this.historyIndex = -1;
@@ -205,6 +200,9 @@
       this.outputBuffer = [];
       this.animationFrames = new Map();
       this.animationIntervals = new Map();
+      // Completion state
+      this._completionState = null;
+      this._nodeCompletionState = null;
       // Formatting state
       this.formattingState = {
         color: null,
@@ -321,7 +319,7 @@
           } else if (e.key === 'ArrowDown') {
             this.navigateHistory(1);
             e.preventDefault();
-          } else if (e.key === 'Tab') {
+          } else if (e.key === 'Tab' || e.key === 'ArrowRight') {
             this.autoComplete();
             e.preventDefault();
           } else if (e.key === 'Escape' && this.animationState.isAnimating) {
@@ -337,6 +335,10 @@
         this.terminalElement.addEventListener('click', () => {
           this.inputElement.focus();
         });
+        this.inputElement.addEventListener('dblclick', e => {
+          this.autoComplete();
+          e.preventDefault();
+        });
       }
     setupNodeEvents() {
       this.rl.on('line', (input) => {
@@ -350,6 +352,31 @@
       }).on('close', () => {
         process.exit(0);
       });
+      // Handle Tab key specifically for Node.js
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true);
+        process.stdin.on('data', (data) => {
+          // Check if it's a Tab key (ASCII 9)
+          if (data.length === 1 && data[0] === 9) { // Tab key
+            // Get current line from readline
+            const line = this.rl.line;
+            // Use our completer
+            const [completions, completed] = this.readlineCompleter(line);
+            if (completions.length > 0 && completed !== line) {
+              // Update the readline with the completed line
+              this.rl.line = completed;
+              this.rl.cursor = completed.length;
+              this.rl._refreshLine();
+            }
+            return; // Prevent default behavior
+          }
+          // Check for Ctrl+C (SIGINT)
+          if (data.length === 1 && data[0] === 3) {
+            this.rl.emit('SIGINT');
+            return;
+          }
+        });
+      }
       // Set up tab completion for Node
       this.rl.on('SIGINT', () => {
         if (this.animationState.isAnimating) {
@@ -392,52 +419,7 @@
         lastIndex = match.index + match[0].length;
         // Process the formatting tag
         const tag = match[1].trim().toLowerCase();
-        if (tag === 'font_reset' || tag === 'fr') {
-          result += '</span>';
-          this.formattingState = {
-            color: null,
-            bold: false,
-            italic: false,
-            underline: false
-          };
-        } else if (tag === 'color_reset') {
-          if (this.formattingState.color) {
-            result += '</span>';
-            this.formattingState.color = null;
-          }
-        } else if (Utils.isValidColor(tag)) {
-          // Close previous color span if exists
-          if (this.formattingState.color) {
-            result += '</span>';
-          }
-          const color = Utils.colorNameToHex(tag.replace('#', ''));
-          result += `<span style="color: ${color}">`;
-          this.formattingState.color = color;
-        } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
-          if (!this.formattingState.bold) {
-            result += '<strong>';
-            this.formattingState.bold = true;
-          }
-        } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
-          if (!this.formattingState.italic) {
-            result += '<em>';
-            this.formattingState.italic = true;
-          }
-        } else if (tag === 'underline' || tag === 'u') {
-          if (!this.formattingState.underline) {
-            result += '<span style="text-decoration: underline">';
-            this.formattingState.underline = true;
-          }
-        } else if (tag === 'newline' || tag === 'n') {
-          result += '<br>';
-        } else if (tag === 'double_newline' || tag === 'dn') {
-          result += '<br><br>';
-        } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
-          result += '&nbsp;&nbsp;&nbsp;&nbsp;';
-        } else if (tag === 'instant') {
-          // Instant tag - handled in animation, just remove the tag
-          result += '';
-        }
+        result += this.processSingleTag(tag);
       }
       // Add the remaining text
       result += text.substring(lastIndex);
@@ -466,6 +448,67 @@
         lastIndex = match.index + match[0].length;
         // Process the formatting tag
         const tag = match[1].trim().toLowerCase();
+        result += this.processSingleTag(tag);
+      }
+      // Add the remaining text
+      result += text.substring(lastIndex);
+      // Reset formatting at the end
+      if (this.formattingState.color || this.formattingState.bold ||
+        this.formattingState.italic || this.formattingState.underline) {
+        result += ANSI_STYLES.reset;
+      }
+      return result;
+    }
+    processSingleTag(tag) {
+      let result = '';
+      if (this.env === 'browser') {
+        if (tag === 'font_reset' || tag === 'fr') {
+          result += '</span>';
+          this.formattingState = {
+            color: null,
+            bold: false,
+            italic: false,
+            underline: false
+          };
+        } else if (tag === 'color_reset') {
+          if (this.formattingState.color) {
+            result += '</span>';
+            this.formattingState.color = null;
+          }
+        } else if (Utils.isValidColor(tag)) {
+          // Close previous color span if exists
+          if (this.formattingState.color) {
+            result += '</span>';
+          }
+          const color = Utils.colorNameToHex(tag.replace('#', ''));
+          result += `<span style="color: ${color}">`;
+          this.formattingState.color = color;
+        } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
+          if (!this.formattingState.bold) {
+            result += '<span style="font-weight: bold">';
+            this.formattingState.bold = true;
+          }
+        } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
+          if (!this.formattingState.italic) {
+            result += '<span style="font-style: italic">';
+            this.formattingState.italic = true;
+          }
+        } else if (tag === 'underline' || tag === 'u') {
+          if (!this.formattingState.underline) {
+            result += '<span style="text-decoration: underline">';
+            this.formattingState.underline = true;
+          }
+        } else if (tag === 'newline' || tag === 'n') {
+          result += '<br>';
+        } else if (tag === 'double_newline' || tag === 'dn') {
+          result += '<br><br>';
+        } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
+          result += '&nbsp;&nbsp;&nbsp;&nbsp;';
+        } else if (tag === 'instant') {
+          // Instant tag - handled in animation, just remove the tag
+          result += '';
+        }
+      } else {
         if (tag === 'font_reset' || tag === 'fr') {
           result += ANSI_STYLES.reset;
           this.formattingState = {
@@ -517,18 +560,14 @@
           result += '';
         }
       }
-      // Add the remaining text
-      result += text.substring(lastIndex);
-      // Reset formatting at the end
-      if (this.formattingState.color || this.formattingState.bold ||
-        this.formattingState.italic || this.formattingState.underline) {
-        result += ANSI_STYLES.reset;
-      }
       return result;
     }
     // Command processing
     processInput(input) {
       if (!input.trim()) return;
+      // Reset completion state when command is executed
+      this._completionState = null;
+      this._nodeCompletionState = null;
       // Interrupt any ongoing animation
       if (this.animationState.currentAnimation || this.queueIsRunning) {
         this.skipAnimation();
@@ -573,6 +612,9 @@
     }
     navigateHistory(direction) {
       if (this.state.history.length === 0) return;
+      // Reset completion state when navigating history
+      this._completionState = null;
+      this._nodeCompletionState = null;
       this.historyIndex += direction;
       if (this.historyIndex < 0) {
         this.historyIndex = 0;
@@ -583,54 +625,196 @@
       }
       this.inputElement.value = this.state.history[this.historyIndex];
     }
-    autoComplete() {
-      const input = this.inputElement.value.trim();
+    autoComplete(input) {
+      if (!input) {
+        if (this.env === 'browser') {
+          input = this.inputElement.value.trim();
+        } else {
+          return; // In Node.js, readline handles completion
+        }
+      }
       if (!input) return;
       const inputParts = input.split(" ");
       const currentWord = inputParts[inputParts.length - 1].toLowerCase();
-      // Find matching commands
-      const matches = [];
-      for (const [command] of this.world.commands) {
-        if (command.startsWith(currentWord)) {
-          matches.push(command);
-        }
-      }
-      // Find matching items in inventory
-      for (const itemId of this.state.inventory) {
-        const item = this.world.items.get(itemId);
-        if (item && item.name.toLowerCase().startsWith(currentWord)) {
-          matches.push(item.name.toLowerCase());
-        }
-      }
-      // Find matching room items
-      const currentRoom = this.world.rooms.get(this.state.currentRoom);
-      if (currentRoom) {
-        for (const itemId of currentRoom.items || []) {
-          const item = this.world.items.get(itemId);
-          if (item && item.name.toLowerCase().startsWith(currentWord)) {
-            matches.push(item.name.toLowerCase());
-          }
-        }
-        // Find matching room exits
-        for (const exit of Object.keys(currentRoom.exits || {})) {
-          if (exit.toLowerCase().startsWith(currentWord)) {
-            matches.push(exit.toLowerCase());
-          }
-        }
-      }
+      // Get completions using the same logic as readlineCompleter
+      const completions = this.getCompletions(currentWord, inputParts, inputParts.length);
+      // Filter matches based on current word
+      const matches = completions.filter(completion => 
+        completion.toLowerCase().startsWith(currentWord.toLowerCase())
+      );
       if (matches.length === 1) {
+        // Single match - complete it
         inputParts[inputParts.length - 1] = matches[0];
-        this.inputElement.value = inputParts.join(" ");
-      } else if (matches.length > 1) {
-        // Find common prefix
-        const commonPrefix = this.findCommonPrefix(matches);
-        if (commonPrefix.length > currentWord.length) {
-          inputParts[inputParts.length - 1] = commonPrefix;
+        if (this.env === 'browser') {
           this.inputElement.value = inputParts.join(" ");
         }
-        // Show suggestions
-        this.printLine("Suggestions: " + matches.join(", "));
+      } else if (matches.length > 1) {
+        // Multiple matches - cycle through them
+        // Store current completion state if not exists
+        if (!this._completionState) {
+          this._completionState = {
+            originalInput: input,
+            matches: matches,
+            currentIndex: -1
+          };
+        } else {
+          // If we're already cycling, increment index
+          this._completionState.currentIndex = 
+            (this._completionState.currentIndex + 1) % matches.length;
+        }
+        // Get the current completion
+        const completion = matches[this._completionState.currentIndex];
+        inputParts[inputParts.length - 1] = completion;
+        if (this.env === 'browser') {
+          this.inputElement.value = inputParts.join(" ");
+        }
+        // Reset completion state if we've cycled through all options
+        if (this._completionState.currentIndex === matches.length - 1) {
+          // Keep the state for next tab press to continue cycling
+        }
+      } else {
+        // No matches - reset completion state
+        this._completionState = null;
       }
+    }
+    readlineCompleter(line) {
+      const input = line.trim();
+      const parts = input.split(/\s+/);
+      const currentWord = parts[parts.length - 1] || '';
+      // Get all possible completions
+      const completions = this.getCompletions(currentWord, parts, parts.length);
+      // Filter matches based on current word
+      const hits = completions.filter(completion => 
+        completion.toLowerCase().startsWith(currentWord.toLowerCase())
+      );
+      if (hits.length > 0) {
+        // Initialize or get completion state
+        if (!this._nodeCompletionState || 
+            this._nodeCompletionState.originalLine !== line ||
+            !Utils.arraysEqual(this._nodeCompletionState.hits, hits)) {
+          this._nodeCompletionState = {
+            originalLine: line,
+            hits: hits,
+            currentIndex: -1
+          };
+        }
+        // Cycle to next completion
+        this._nodeCompletionState.currentIndex = 
+          (this._nodeCompletionState.currentIndex + 1) % hits.length;
+        const currentCompletion = hits[this._nodeCompletionState.currentIndex];
+        // Replace the last word in the line with the completion
+        const completedLine = parts.slice(0, -1).concat(currentCompletion).join(' ');
+        // Return the completed line for readline to use
+        return [[completedLine], completedLine];
+      }
+      // No matches - return original line
+      return [[line], line];
+    }
+    getCompletions(currentWord, parts, partCount) {
+      const completions = new Set();
+      // Command completions (always available)
+      for (const [commandName, command] of this.world.commands) {
+        if (command.weight !== -1) { // Don't include hidden commands
+          completions.add(commandName);
+          if (command.aliases) {
+            command.aliases.forEach(alias => completions.add(alias));
+          }
+        }
+      }
+      // Get current room context
+      const currentRoom = this.world.rooms.get(this.state.currentRoom);
+      if (currentRoom) {
+        // Room exit completions
+        if (currentRoom.exits) {
+          Object.keys(currentRoom.exits).forEach(exit => completions.add(exit));
+        }
+        // Item completions in room
+        if (currentRoom.items) {
+          currentRoom.items.forEach(itemId => {
+            const item = this.world.items.get(itemId);
+            if (item) {
+              completions.add(item.name.toLowerCase());
+              if (item.aliases) {
+                item.aliases.forEach(alias => completions.add(alias.toLowerCase()));
+              }
+            }
+          });
+        }
+        // Character completions in room
+        if (currentRoom.characters) {
+          currentRoom.characters.forEach(charId => {
+            const character = this.world.characters.get(charId);
+            if (character) {
+              completions.add(character.name.toLowerCase());
+              if (character.aliases) {
+                character.aliases.forEach(alias => completions.add(alias.toLowerCase()));
+              }
+              // Add genre pronouns if only one character
+              if (currentRoom.characters.length === 1 && character.genre) {
+                if (character.genre === 'female') {
+                  completions.add('her');
+                  completions.add('she');
+                } else if (character.genre === 'male') {
+                  completions.add('him');
+                  completions.add('he');
+                }
+              }
+            }
+          });
+        }
+      }
+      // Inventory item completions
+      this.state.inventory.forEach(itemId => {
+        const item = this.world.items.get(itemId);
+        if (item) {
+          completions.add(item.name.toLowerCase());
+          if (item.aliases) {
+            item.aliases.forEach(alias => completions.add(alias.toLowerCase()));
+          }
+        }
+      });
+      // Topic completions for "talk about" commands
+      if (partCount >= 3 && parts[0] === 'talk' && currentRoom && currentRoom.characters) {
+        const characterName = parts[1].toLowerCase();
+        // Find the character
+        for (const charId of currentRoom.characters) {
+          const character = this.world.characters.get(charId);
+          if (character && (
+            character.name.toLowerCase().includes(characterName) ||
+            (character.aliases && character.aliases.some(alias => 
+              alias.toLowerCase().includes(characterName))
+            )
+          )) {
+            // Add all topics for this character
+            if (character.topics) {
+              Object.keys(character.topics).forEach(topic => completions.add(topic));
+              Object.values(character.topics).forEach(topicData => {
+                if (topicData.aliases) {
+                  topicData.aliases.forEach(alias => completions.add(alias));
+                }
+              });
+            }
+            break;
+          }
+        }
+      }
+      // Direction shortcuts for "go" command
+      if (parts[0] === 'go' && partCount === 2) {
+        const directions = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 
+                           'southeast', 'southwest', 'up', 'down', 'in', 'out'];
+        const shortDirs = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw', 'u', 'd', 'i', 'o'];
+        directions.forEach(dir => completions.add(dir));
+        shortDirs.forEach(dir => completions.add(dir));
+      }
+      // Save slot completions for save/load commands
+      if ((parts[0] === 'save' || parts[0] === 'load' || parts[0] === 'delete') && partCount === 2) {
+        completions.add('default');
+        completions.add('autosave');
+        completions.add('slot1');
+        completions.add('slot2');
+        completions.add('slot3');
+      }
+      return Array.from(completions).sort();
     }
     findCommonPrefix(strings) {
       if (strings.length === 0) return "";
@@ -736,24 +920,7 @@
             if (tagEnd !== -1) {
               const tag = text.substring(index + 2, tagEnd).trim().toLowerCase();
               // Handle formatting tags
-              if (tag === 'font_reset' || tag === 'fr') {
-                outputText += '</span>';
-              } else if (tag === 'color_reset') {
-                outputText += '</span>';
-              } else if (Utils.isValidColor(tag)) {
-                const color = Utils.colorNameToHex(tag.replace('#', ''));
-                outputText += `<span style="color: ${color}">`;
-              } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
-                outputText += '<strong>';
-              } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
-                outputText += '<em>';
-              } else if (tag === 'underline' || tag === 'u') {
-                outputText += '<span style="text-decoration: underline">';
-              } else if (tag === 'newline' || tag === 'n') {
-                outputText += '<br>';
-              } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
-                outputText += '&nbsp;&nbsp;&nbsp;&nbsp;';
-              }
+              outputText += this.processSingleTag(tag);
               index = tagEnd + 2;
               div.innerHTML = outputText;
               return;
@@ -812,26 +979,7 @@
             if (tagEnd !== -1) {
               const tag = text.substring(index + 2, tagEnd).trim().toLowerCase();
               // Handle formatting tags
-              if (tag === 'font_reset' || tag === 'fr') {
-                process.stdout.write(ANSI_STYLES.reset);
-              } else if (tag === 'color_reset') {
-                process.stdout.write(ANSI_STYLES.reset);
-              } else if (Utils.isValidColor(tag)) {
-                const colorName = tag.replace('#', '');
-                if (ANSI_COLORS[colorName]) {
-                  process.stdout.write(ANSI_COLORS[colorName]);
-                }
-              } else if (tag === 'bold' || tag === 'thick' || tag === 'strong' || tag === 'b') {
-                process.stdout.write(ANSI_STYLES.bold);
-              } else if (tag === 'italic' || tag === 'cursive' || tag === 'i') {
-                process.stdout.write(ANSI_STYLES.italic);
-              } else if (tag === 'underline' || tag === 'u') {
-                process.stdout.write(ANSI_STYLES.underline);
-              } else if (tag === 'newline' || tag === 'n') {
-                process.stdout.write('\n');
-              } else if (tag === 'tabulator' || tag === 'tab' || tag === 't') {
-                process.stdout.write('\t');
-              }
+              process.stdout.write(this.processSingleTag(tag));
               index = tagEnd + 2;
               return;
             }
@@ -1164,12 +1312,6 @@
         this.printLine(room.description);
         this.printLine("");
       }
-      if (room.tutorial) {
-        this.printTutorial(room.tutorial);
-        if (!room.keepTutorial) {
-          room.tutorial = false;
-        }
-      }
       // Call onLook
       if (!silent && room.onLook) {
         room.onLook(this.state, this);
@@ -1194,6 +1336,20 @@
           .join(", ");
         this.printLine(`You see: ${charList}`);
       }
+      // Show tutorials
+      if (room.tutorial || room.tutorials) {
+        this.printLine("");
+        if (typeof room.tutorial === "string") {
+          this.printTutorial(room.tutorial);
+        } else if (typeof room.tutorial === "object" || typeof room.tutorials === "object") {
+          (room.tutorial || room.tutorials).forEach(command => {
+            this.printTutorial(command);
+          });
+        }
+        if (!room.keepTutorial) {
+          delete room.tutorial;
+        }
+      }
     }
     printRoomExits(room) {
       if (!room) return false;
@@ -1207,9 +1363,9 @@
       return true;
     }
     printTutorial(key) {
-      const tutorial = this.tutorials[key];
-      if (!tutorial) return;
-      this.printLine(`Type {{bold}}${tutorial.command}{{font_reset}} to ${tutorial.purpose}.`);
+      const command = this.world.commands.get(key);
+      if (!command || !command.purpose) return;
+      this.printLine(`Type {{bold}}${command.name}{{font_reset}} to ${command.purpose}.`);
     }
     stopAnimation(animationId) {
       if (this.animationIntervals.has(animationId)) {
@@ -1266,13 +1422,13 @@
         return false;
       }
       if (!item.takeable) {
-        this.printLine(`You can't take the ${item.name}.`);
+        this.printLine(`You can't take the ${item.shortName || item.name}.`);
         return false;
       }
       // Remove from room, add to inventory
       room.items = room.items.filter(id => id !== itemId);
       this.state.inventory.push(itemId);
-      this.printLine(`You take the ${item.name}.`);
+      this.printLine(`You take the ${item.shortName || item.name}.`);
       return true;
     }
     dropItem(itemId) {
@@ -1295,7 +1451,7 @@
       this.state.inventory.splice(itemIndex, 1);
       if (!room.items) room.items = [];
       room.items.push(itemId);
-      this.printLine(`You drop the ${item.name}.`);
+      this.printLine(`You drop the ${item.shortName || item.name}.`);
       return true;
     }
     useItem(itemId, targetId = null) {
@@ -1314,7 +1470,7 @@
         if (item.use) {
           return item.use(this.state, this);
         } else {
-          this.printLine(`You can't use the ${item.name} that way.`);
+          this.printLine(`You can't use the ${item.shortName || item.name} that way.`);
           return false;
         }
       }
@@ -1347,7 +1503,7 @@
       if (target.useWith && target.useWith[itemId]) {
         return target.useWith[itemId](this.state, this);
       }
-      this.printLine(`Using the ${item.name} on the ${target.name} doesn't seem to do anything.`);
+      this.printLine(`Using the ${item.shortName || item.name} on the ${item.shortName || target.name} doesn't seem to do anything.`);
       return false;
     }
     lookAtItem(itemName) {
@@ -1379,7 +1535,7 @@
       } else if (item.description) {
         this.printLine(item.description);
       } else {
-        this.printLine(`It's ${item.name}.`);
+        this.printLine(`It's a ${item.shortName || item.name}.`);
       }
       return true;
     }
@@ -1410,7 +1566,7 @@
       if (item.use) {
         return item.use(this.state, this);
       } else {
-        this.printLine(`You're not sure how to use ${item.name}.`);
+        this.printLine(`You're not sure how to use the ${item.shortName || item.name}.`);
         return false;
       }
     }
@@ -1822,6 +1978,7 @@
         fn: () => {},
         help: "",
         weight: null,
+        purpose: null,
         ...command
       });
       if (command.aliases) {
@@ -1840,6 +1997,7 @@
         aliases: ["h", "?"],
         fn: () => this.printHelp(),
         help: "Show this help",
+        purpose: "see available commands",
         weight: 1000
       });
       // Look command
@@ -1857,6 +2015,7 @@
           engine.lookAtItem(target);
         },
         help: "Look around or examine a specific item",
+        purpose: "look around",
         weight: 1
       });
       // Movement commands
@@ -1876,6 +2035,7 @@
           engine.move(args[0]);
         },
         help: "Move in a direction",
+        purpose: "move in a direction",
         weight: 2
       })
       // Direction shortcuts
@@ -1889,6 +2049,7 @@
           aliases: [alias],
           fn: (args, engine) => engine.move(dir),
           help: null,
+          purpose: `go ${dir}`,
           weight: -1
         });
       }
@@ -1948,6 +2109,7 @@
           }
         },
         help: "Take an item",
+        purpose: "take something",
         weight: 3
       });
       // Drop command
@@ -1976,6 +2138,7 @@
           }
         },
         help: "Drop an item",
+        purpose: "drop something you don't need anymore",
         weight: 4
       });
       // Inventory command
@@ -1996,6 +2159,7 @@
           }
         },
         help: "Show your inventory",
+        purpose: "show items you have",
         weight: 5
       });
       // Use command
@@ -2029,6 +2193,7 @@
           }
         },
         help: "Use an item from inventory or in the environment",
+        purpose: "use something you have close",
         weight: 6
       });
       // Say command
@@ -2045,16 +2210,18 @@
           // Trigger character reactions
           const room = engine.world.rooms.get(engine.state.currentRoom);
           if (room && room.characters) {
+            let interrupt = false;
             room.characters.forEach(charId => {
               const character = engine.world.characters.get(charId);
-              if (character && character.onSay) {
-                character.onSay(line, engine.state, engine);
+              if (character && character.onSay && !interrupt) {
+                interrupt = character.onSay(line, engine.state, engine) ? true : false;
               }
             });
           }
         },
-        weight: 7,
-        help: "Say something"
+        help: "Say something",
+        purpose: "say something",
+        weight: 7
       });
       // Talk command
       this.registerCommand({
@@ -2077,7 +2244,7 @@
                   display += ` (also: ${character.aliases.join(', ')})`;
                 }
                 if (character.genre && room.characters.length === 1) {
-                  display += ` [or use "talk ${character.genre}"]`;
+                  display += ` or use "talk ${character.genre === "male" ? "him" : "her"}"`;
                 }
                 return display;
               })
@@ -2157,18 +2324,19 @@
               }
             }
             if (!foundTopic) {
-              engine.printLine(`${character.name} doesn't seem to know anything about "${topic}".`);
+              engine.printLine(`${character.shortName || character.name} doesn't seem to know anything about "${topic}".`);
             }
           } else {
             // Standard talk interaction
             if (character.talk) {
               character.talk(engine.state, engine);
             } else {
-              engine.printLine(`${character.name} has nothing to say to you right now.`);
+              engine.printLine(`${character.shortName || character.name} has nothing to say to you right now.`);
             }
           }
         },
         help: "Talk to someone or ask about a specific topic",
+        purpose: "talk to someone or ask about a specific topic",
         weight: 8
       });
       // Save command
@@ -2180,6 +2348,7 @@
           engine.saveGame(slot);
         },
         help: "Save the game",
+        purpose: "save the game",
         weight: 9
       });
       // Load command
@@ -2191,6 +2360,7 @@
           engine.loadGame(slot);
         },
         help: "Load a saved game",
+        purpose: "load a saved game",
         weight: 10
       });
       // Restart command
@@ -2198,6 +2368,7 @@
         name: "restart",
         fn: () => this.restartGame(),
         help: "Restart the game",
+        purpose: "restart the game",
         weight: 11
       });
       // Quit command
@@ -2223,6 +2394,7 @@
           }
         },
         help: "Quit the game",
+        purpose: "finish playing",
         weight: 999
       });
     }
