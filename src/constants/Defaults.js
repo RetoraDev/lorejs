@@ -1,5 +1,5 @@
 // Constants
-const VERSION = "1.0.0";
+const VERSION = "1.0.3";
 const STORAGE_KEY = "lore_save_data";
 const DEFAULT_PROMPT = "> ";
 const DEFAULT_THEME = {

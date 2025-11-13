@@ -1369,8 +1369,9 @@ class Game {
         });
       }
       
-      if (!room.keepTutorial) {
+      if (!room.keepTutorials) {
         delete room.tutorial;
+        delete room.tutorials;
       }
     }
   }
@@ -2072,20 +2073,42 @@ class Game {
   }
 
   // Command registration
-  printHelp() {
-    this.printLine("{{bold}}Available commands:{{font_reset}}");
-    
-    const commands = Array.from(this.world.commands)
-      .map(command => command[1])
-      .sort((a, b) => a.weight - b.weight)
-      .filter(command => command.help && command.weight != -1);
+  printHelp(commandName) {
+    if (!commandName) {
+      this.printLine("{{bold}}Available commands:{{font_reset}}");
       
-    commands.forEach(command => {
-      const name = command.display || command.name;
-      const aliases = command.aliases && command.aliases.length ? ", " + command.aliases.join(', ') : "";
-      const help = command.help;
-      this.printLine(`  {{green}}${name}{{color_reset}}{{green}}${aliases}{{color_reset}} - ${help}`);
-    });
+      const commands = Array.from(this.world.commands)
+        .map(command => command[1])
+        .sort((a, b) => a.weight - b.weight)
+        .filter(command => command.help && command.weight != -1);
+        
+      commands.forEach(command => {
+        const name = command.display || command.name;
+        const aliases = command.aliases && command.aliases.length ? ", " + command.aliases.join(', ') : "";
+        const help = command.help;
+        this.printLine(`  {{green}}${name}{{color_reset}}{{green}}${aliases}{{color_reset}} - ${help}`);
+      });
+    } else {
+      if (!this.world.commands.has(commandName) && this.world.aliases.has(commandName)) {
+        commandName = this.world.aliases.get(commandName);
+      }
+      
+      const command = this.world.commands.get(commandName);
+      
+      if (!command) {
+        this.printLine("");
+        this.printLine(`Unknown command: ${commandName}. Type 'help' for available commands.`);
+      } else {
+        const aliases = command.aliases && command.aliases.length ? ", " + command.aliases.join(', ') : "";
+                
+        this.printLine(`{{green}}${command.name}${aliases}{{color_reset}`);
+        this.printLine("Usage:");
+        this.printLine(`{{green}}${command.display || command.name}{{color_reset}}`);
+        if (command.purpose) {
+          this.printLine(`Use it to ${command.purpose}.`);
+        }
+      }
+    }
   }
   
   registerCommand(command) {
@@ -2117,7 +2140,7 @@ class Game {
     this.registerCommand({
       name: "help",
       aliases: ["h", "?"],
-      fn: () => this.printHelp(),
+      fn: (args, engine) => engine.printHelp(args[0]),
       help: "Show this help",
       purpose: "see available commands",
       weight: 1000
