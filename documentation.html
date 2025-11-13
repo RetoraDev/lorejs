@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>LoreJS Documentation</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/RetoraDev/doki-docs@main/doki-docs.css">
+</head>
+<body class="doki-hidden">
+    [title: "LoreJS Text Engine Documentation"]
+    
+    [heading: "Introduction"]
+    <p>LoreJS is a powerful, cross-platform text adventure engine that works in both browser and Node.js environments. It provides a complete framework for creating interactive fiction games with rich formatting, character interactions, inventory systems, and more.</p>
+    
+    <a href="https://retoradev.github.io/lorejs/">Play Demo</a>
+    
+    [note: "LoreJS is under active development. Features and APIs may change between versions. Always check the GitHub repository for the latest documentation and release notes."]        
+    
+    [heading: "Quick Start"]
+    
+    [subheading: "Installation"]
+    <p>Include LoreJS in your project:</p>
+    
+    [codeblock html]
+    <!-- Browser -->
+    &lt;script src="lore.js"&gt;&lt;/script&gt;
+    &lt;script&gt;
+        const game = new LORE.Game();
+    &lt;/script&gt;
+    [/codeblock]
+    
+    [codeblock javascript]
+    // Node.js
+    const LORE = require('./lore.js');
+    const game = new LORE.Game();
+    [/codeblock]
+    
+    [subheading: "Basic Usage"]
+    
+    [codeblock javascript]
+    // Create a game instance
+    const game = new LORE.Game({
+        prompt: "> ",
+        typingSpeed: 30,
+        autosave: true
+    });
+    
+    // Load a novel/game
+    game.loadNovel({
+        title: "My Adventure",
+        startRoom: "room1",
+        rooms: [
+            {
+                id: "room1",
+                name: "Starting Room",
+                description: "You are in a small room.",
+                exits: { north: "room2" }
+            }
+        ]
+    });
+    
+    // Start the game
+    game.start();
+    [/codeblock]
+    
+    [heading: "Core Concepts"]
+    
+    [subheading: "Game Structure"]
+    <p>LoreJS games are built around several key components:</p>
+    
+    [list]
+    - Rooms: Locations the player can navigate between
+    - Items: Objects that can be taken, used, or examined
+    - Characters: NPCs with dialog and interaction capabilities
+    - Commands: Player actions like 'look', 'take', 'use'
+    - Events: Conditional triggers for game progression
+    [/list]
+    
+    [subheading: "State Management"]
+    <p>The engine maintains comprehensive game state:</p>
+    
+    [codeblock javascript]
+    game.state = {
+        currentRoom: "room1",      // Current location
+        inventory: ["item1"],      // Player's items
+        flags: {},                 // Game progression flags
+        variables: {},             // Dynamic variables
+        history: [],               // Command history
+        gameTime: 0                // Game time counter
+    };
+    [/codeblock]
+    
+    [heading: "Configuration Options"]
+    
+    [subheading: "Game Configuration"]
+    
+    [table header]
+    [ Option | Type | Default | Description ]
+    [ prompt | string | "> " | Command prompt display ]
+    [ typingSpeed | number | 30 | Text animation speed (ms) ]
+    [ autosave | boolean | false | Auto-save on commands ]
+    [ debug | boolean | false | Enable debug output ]
+    [ clearScreenOnNovelLoad | boolean | true | Clear screen on game load ]
+    [ disableTextAnimation | boolean | false | Disable typing animation ]
+    [/table]
+    
+    [subheading: "Theme Configuration"]
+    
+    [codeblock javascript]
+    const theme = {
+        "--lore-bg-color": "#000000",
+        "--lore-text-color": "#ffffff", 
+        "--lore-prompt-color": "#00ff00",
+        "--lore-input-color": "#ffffff",
+        "--lore-font-family": "monospace",
+        "--lore-font-size": "16px"
+    };
+    
+    game.loadTheme(theme);
+    [/codeblock]
+    
+    [heading: "World Building"]
+    
+    [subheading: "Creating Rooms"]
+    
+    [codeblock javascript]
+    game.addRoom({
+        id: "forest",
+        name: "{{bold}}{{green}}Mysterious Forest{{font_reset}}",
+        description: "You are in a dense forest. Paths lead north and east.",
+        exits: {
+            north: "clearing",
+            east: "river"
+        },
+        items: ["torch", "key"],
+        characters: ["old_man"],
+        onEnter: (state, engine) => {
+            if (!state.flags.visitedForest) {
+                engine.printLine("Birds chirp in the trees above.");
+                state.flags.visitedForest = true;
+            }
+        }
+    });
+    [/codeblock]
+    
+    [subheading: "Adding Items"]
+    
+    [codeblock javascript]
+    game.addItem({
+        id: "torch",
+        name: "{{yellow}}Wooden Torch{{color_reset}}",
+        aliases: ["light", "flare"],
+        takeable: true,
+        description: "A sturdy wooden torch that could provide light.",
+        use: (state, engine) => {
+            engine.printLine("The torch flickers to life, casting warm light.");
+            return true;
+        },
+        look: (state, engine) => {
+            engine.printLine("The torch is made of aged wood and cloth.");
+        }
+    });
+    [/codeblock]
+    
+    [warning: "Items without takeable: true cannot be picked up but can still be used in their location."]
+    
+    [subheading: "Creating Characters"]
+    
+    [codeblock javascript]
+    game.addCharacter({
+        id: "old_man",
+        name: "{{gray}}Old Man{{font_reset}}",
+        aliases: ["man", "elder"],
+        genre: "male",
+        description: "An elderly man with a long beard.",
+        talk: (state, engine) => {
+            engine.printLine("Old Man: 'The forest holds many secrets, traveler.'");
+        },
+        topics: {
+            forest: {
+                aliases: ["woods", "trees"],
+                dialog: (state, engine) => {
+                    engine.printLine("Old Man: 'Beware the whispering trees after dark.'");
+                }
+            }
+        },
+        onSay: (text, state, engine) => {
+            if (text.toLowerCase().includes("help")) {
+                engine.printLine("Old Man: 'I can tell you about the forest if you ask.'");
+            }
+        }
+    });
+    [/codeblock]
+    
+    [heading: "Text Formatting System"]
+    
+    [subheading: "Formatting Tags"]
+    <p>LoreJS supports rich text formatting using double-brace syntax:</p>
+    
+    [table header]
+    [ Tag | Description | Example ]
+    [ {{color}} | Set text color | {{red}}Red text{{color_reset}} ]
+    [ {{bold}} | Bold text | {{bold}}Important{{font_reset}} ]
+    [ {{italic}} | Italic text | {{italic}}Emphasis{{font_reset}} ]
+    [ {{underline}} | Underlined text | {{underline}}Link{{font_reset}} ]
+    [ {{newline}} | Line break | Line1{{newline}}Line2 ]
+    [ {{tabulator}} | Tab space | {{tabulator}}Indented ]
+    [ {{instant}} | Skip animation | {{instant}}Fast text{{/instant}} ]
+    [/table]
+    
+    [subheading: "Available Colors"]
+    
+    [list]
+    - {{red}}red{{color_reset}}
+    - {{green}}green{{color_reset}} 
+    - {{blue}}blue{{color_reset}}
+    - {{yellow}}yellow{{color_reset}}
+    - {{magenta}}magenta{{color_reset}}
+    - {{cyan}}cyan{{color_reset}}
+    - {{white}}white{{color_reset}}
+    - {{black}}black{{color_reset}}
+    [/list]
+    
+    [heading: "Command System"]
+    
+    [subheading: "Built-in Commands"]
+    
+    [table header]
+    [ Command | Aliases | Purpose ]
+    [ help | h, ? | Show available commands ]
+    [ look | l, see, examine | Look around or examine items ]
+    [ go | [direction] | Move between rooms ]
+    [ take | - | Pick up items ]
+    [ drop | - | Drop inventory items ]
+    [ inventory | i | Show carried items ]
+    [ use | - | Use items or environmental objects ]
+    [ say | - | Speak (characters may react) ]
+    [ talk | - | Talk to characters with topics ]
+    [ save | - | Save game progress ]
+    [ load | - | Load saved game ]
+    [ restart | - | Restart the game ]
+    [ quit | exit | Exit the game ]
+    [/table]
+    
+    [subheading: "Movement Shortcuts"]
+    
+    [list]
+    - north, south, east, west (n, s, e, w)
+    - northeast, northwest (ne, nw) 
+    - southeast, southwest (se, sw)
+    - up, down, in, out (u, d, i, o)
+    [/list]
+    
+    [subheading: "Custom Commands"]
+    
+    [codeblock javascript]
+    game.registerCommand({
+        name: "dance",
+        aliases: ["boogie"],
+        help: "Perform a dance",
+        purpose: "express yourself through movement", 
+        weight: 50,
+        fn: (args, engine) => {
+            engine.printLine("You dance joyfully!");
+            return true;
+        }
+    });
+    [/codeblock]
+    
+    [heading: "Advanced Features"]
+    
+    [subheading: "Room Locking System"]
+    
+    [codeblock javascript]
+    // Lock a room with a condition
+    game.lockRoom("treasure_room", 
+        (state) => state.inventory.includes("gold_key"),
+        "The door is locked. You need a golden key."
+    );
+    
+    // Unlock dynamically
+    game.unlockRoom("treasure_room");
+    [/codeblock]
+    
+    [subheading: "Event System"]
+    
+    [codeblock javascript]
+    game.addEvent({
+        id: "sunset",
+        condition: (state) => state.gameTime > 100,
+        trigger: (state, engine) => {
+            engine.printLine("The sun begins to set...");
+            // Game state changes
+        }
+    });
+    [/codeblock]
+    
+    [subheading: "Plugin System"]
+    
+    [codeblock javascript]
+    const myPlugin = {
+        id: "magic-system",
+        name: "Magic System",
+        commands: [
+            {
+                name: "cast",
+                help: "Cast a spell",
+                fn: (args, engine) => { /* spell logic */ }
+            }
+        ],
+        items: [/* magical items */],
+        init: (engine) => {
+            engine.printLine("Magic system loaded!");
+        }
+    };
+    
+    game.loadPlugin(myPlugin);
+    [/codeblock]
+    
+    [heading: "Input & Interaction"]
+    
+    [subheading: "Tab Completion"]
+    <p>LoreJS provides intelligent tab completion for:</p>
+    
+    [list]
+    - Available commands and aliases
+    - Room exits and directions  
+    - Items in current room and inventory
+    - Characters in current room
+    - Topics when using 'talk about'
+    - Save slots for save/load commands
+    [/list]
+    
+    [subheading: "Character Interactions"]
+    
+    [codeblock javascript]
+    // Basic conversation
+    talk old_man
+    
+    // Topic-based conversation  
+    talk old_man about forest
+    
+    // Genre pronouns (when only one character present)
+    talk him about secrets
+    talk her about future
+    [/codeblock]
+    
+    [heading: "Save System"]
+    
+    [subheading: "Manual Saving/Loading"]
+    
+    [codeblock javascript]
+    // Save to specific slot
+    game.saveGame("slot1");
+    
+    // Load from slot
+    game.loadGame("slot1");
+    
+    // List all saves
+    game.listSaves();
+    
+    // Delete save
+    game.deleteSave("slot1");
+    [/codeblock]
+    
+    [subheading: "Auto-save"]
+    <p>Enable automatic saving after each command:</p>
+    
+    [codeblock javascript]
+    const game = new LORE.Game({
+        autosave: true  // Saves to 'autosave' slot
+    });
+    [/codeblock]
+    
+    [heading: "Novel Structure"]
+    
+    [subheading: "Complete Game Example"]
+    
+    [codeblock javascript]
+    module.exports = {
+        title: "The Great Adventure",
+        startRoom: "start",
+        rooms: [
+            {
+                id: "start", 
+                name: "Starting Point",
+                description: "You stand at a crossroads.",
+                exits: { north: "forest", east: "village" },
+                items: ["map"],
+                tutorial: ["look", "go"]
+            }
+        ],
+        items: [
+            {
+                id: "map",
+                name: "Old Map",
+                takeable: true,
+                description: "A faded map of the region.",
+                use: (state, engine) => {
+                    engine.printLine("The map shows hidden paths...");
+                }
+            }
+        ],
+        characters: [
+            {
+                id: "guide",
+                name: "Mysterious Guide", 
+                talk: (state, engine) => {
+                    engine.printLine("Guide: 'Choose your path wisely.'");
+                }
+            }
+        ],
+        events: [
+            {
+                id: "victory",
+                condition: (state) => state.flags.foundTreasure,
+                trigger: (state, engine) => {
+                    engine.printLine("Congratulations! You won!");
+                }
+            }
+        ]
+    };
+    [/codeblock]
+    
+    [heading: "API Reference"]
+    
+    [subheading: "Core Methods"]
+    
+    [table header]
+    [ Method | Parameters | Description ]
+    [ print | (text, instant) | Output text with animation ]
+    [ printLine | (text, instant) | Output text with newline ]
+    [ clearScreen | () | Clear the terminal/output ]
+    [ move | (direction) | Move player to connected room ]
+    [ look | (silent) | Describe current room ]
+    [ takeItem | (itemId) | Add item to inventory ]
+    [ useItem | (itemId, targetId) | Use item on target ]
+    [ enterRoom | (roomId) | Move to specified room ]
+    [/table]
+    
+    [subheading: "Utility Methods"]
+    
+    [table header]
+    [ Method | Description ]
+    [ lockRoom | Lock room with condition ]
+    [ unlockRoom | Remove room lock ]
+    [ isRoomLocked | Check if room is accessible ]
+    [ registerCommand | Add custom command ]
+    [ loadNovel | Load game data ]
+    [ loadTheme | Apply visual theme ]
+    [ loadPlugin | Load extension ]
+    [/table]
+    
+    [heading: "Browser vs Node.js"]
+    
+    [subheading: "Environment Detection"]
+    <p>LoreJS automatically detects and adapts to its environment:</p>
+    
+    [codeblock javascript]
+    if (Utils.isBrowser) {
+        // Browser-specific setup
+    } else if (Utils.isNode) {
+        // Node.js-specific setup  
+    }
+    [/codeblock]
+    
+    [subheading: "Key Differences"]
+    
+    [list]
+    - Browser: Uses DOM elements, CSS styling, event listeners
+    - Node.js: Uses readline, file system, process.stdout
+    - Both: Identical game logic and API
+    [/list]
+    
+    [heading: "Best Practices"]
+    
+    [subheading: "Game Design Tips"]
+    [list]
+    - Use descriptive room names and detailed descriptions to create immersion.
+    - Test room connections thoroughly to avoid dead ends or circular references.
+    - Always provide clear feedback for player actions - silent failures frustrate users.
+    [/list]
+    
+    [subheading: "Performance Considerations"]
+    
+    [list]
+    - Use typingSpeed: 0 for instant text in action-heavy sequences
+    - Limit animation frames for complex ASCII art
+    - Use state.flags to track progression instead of complex conditions
+    - Preload large novels or split into modules
+    [/list]
+    
+    [citation: "We don't just tell stories; we build worlds where stories can happen. The player becomes the author of their own experience." - Marc Blank, co-creator of Zork]
+    
+    [footer: "LoreJS v1.0.3 | Documentation generated with <a href="https://github.com/RetoraDev/doki-docs">DokiDocs</a> | &copy; 2025 RetoraDev"]
+    
+    <script src="https://cdn.jsdelivr.net/gh/RetoraDev/doki-docs@main/doki-docs.js"></script>
+</body>
+</html>

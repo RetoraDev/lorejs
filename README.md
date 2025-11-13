@@ -20,6 +20,12 @@ REPL-style text engine. Small and easy to use, highly customizable supporting th
 - Auto-saving: Optional automatic save state management
 - Customizable: Themes, plugins, and flexible game structure
 
+## Live Demo and Docs
+
+Try it live [here](https://retoradev.github.io/lorejs/). You'll play a demo dating novel from sample data.
+
+See documentation [here](https://retoradev.github.io/lorejs/documentation.html)
+
 ## Installation
 
 Node.JS Usage
@@ -196,24 +202,14 @@ module.exports = {
 game.loadTheme('./sample/sample_theme.js');
 ```
 
-## Available Commands
-
-- look - View current room description
-- go [direction] - Move to a different room
-- take [item] - Pick up an item
-- use [item] - Use an item
-- inventory - View carried items
-- save - Save game state
-- load - Load game state
-- help - Show available commands
-
-## Sample Files
+## Sample Data
 
 The repository includes sample files in the sample/ directory:
 
-- sample_novel.js - Example game structure
-- sample_plugin.js - Example plugin
-- sample_theme.js - Example theme
+- `sample_puzzle_novel.js` - Example mini key puzzle game where you need to find a treasure
+- `sample_dating_novel.js` - Example full interactive dating game with time progression
+- `sample_plugin.js` - Example minimal plugin
+- `sample_theme.js` - Example theme
 
 ## Building from Source
 
@@ -244,10 +240,6 @@ src/
   │   └── Utils.js
   └── main.js
 ```
-
-## API Reference
-
-See API Reference [here](./documentation.md)
 
 ## Contributing
 
